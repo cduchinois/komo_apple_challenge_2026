@@ -25,7 +25,7 @@ struct OptionRow: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
             .frame(maxWidth: .infinity)
-            .komoGlassCard(cornerRadius: Theme.Radius.button, fillOpacity: 0.13, strokeOpacity: 0.24, interactive: true)
+            .komoGlassButton(cornerRadius: Theme.Radius.button, strokeOpacity: 0.24)
         }
         .buttonStyle(.plain)
         .accessibilityHint("Selects \(label)")
@@ -45,11 +45,10 @@ struct PillChip: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 13)
-                .komoGlassCard(
+                .komoGlassButton(
                     cornerRadius: Theme.Radius.chip,
-                    fillOpacity: selected ? 0.26 : 0.12,
-                    strokeOpacity: selected ? 0.92 : 0.24,
-                    interactive: true)
+                    tint: selected ? Color.white.opacity(0.22) : nil,
+                    strokeOpacity: selected ? 0.92 : 0.24)
                 .scaleEffect(selected ? 1.0 : 0.99)
                 .animation(.spring(response: 0.25, dampingFraction: 0.7), value: selected)
         }

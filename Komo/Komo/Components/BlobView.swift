@@ -71,7 +71,7 @@ struct BlobView: View {
     }
 
     private var restValues: Values {
-        Values(outer: outerAnim.transform(at: 0.18), breathe: 1, morph: 0.6, blink: 1, twinkle: 1, wiggle: 0)
+        Values(outer: outerAnim.transform(at: 0.18), breathe: 1, morph: 0.0, blink: 1, twinkle: 1, wiggle: 0)
     }
 
     private func liveValues(at date: Date) -> Values {
@@ -80,8 +80,8 @@ struct BlobView: View {
 
         let outer = outerAnim.transform(at: phase(outerDuration))
         let breatheScale = 1 + 0.045 * sin(phase(preset.breathe) * 2 * .pi)
-        // Continuous traveling wobble reads more organic than a hard 2-state loop.
-        let morph = phase(preset.morph) * 2 * .pi
+        // 0...1 loop phase through the komoMochi border-radius keyframes.
+        let morph = phase(preset.morph)
         let blink = blinkScale(phase(6.0))
         let twinkle = 1 + 0.13 * sin(phase(2.4) * 2 * .pi)
         let wiggle = 8 * sin(phase(0.9) * 2 * .pi)

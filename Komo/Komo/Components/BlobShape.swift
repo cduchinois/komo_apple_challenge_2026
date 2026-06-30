@@ -1,75 +1,90 @@
 //  BlobShape.swift
 //  Komo
 //
-//  The companion's organic silhouette. The web prototype morphs an asymmetric
-//  CSS `border-radius` between two states (komoMorph / komoMochi). We reproduce
-//  that "gel settling" feel natively with a radial sum-of-sines blob whose
-//  harmonics are desynced so it never wobbles mechanically. `morph` is the
-//  animatable phase driven by BlobView's TimelineView.
+//  The companion's silhouette. The web prototype's "cute" body is a CSS box whose
+//  8-value `border-radius` morphs between four states (komoMochi) — i.e. each
+//  corner is an *ellipse* whose horizontal/vertical radii animate. We reproduce
+//  that faithfully here (smooth rounded jelly, no noise lumps) by interpolating
+//  the four keyframes and drawing per-corner elliptical arcs. `morph` is the loop
+//  phase 0...1 driven by BlobView's TimelineView.
 
 import SwiftUI
 
 struct BlobShape: Shape {
-    /// Loop phase in radians-ish (0...2π worth of travel); animatable.
+    /// Loop phase in 0...1 (wraps). Animatable.
     var morph: Double
-    /// Per-instance offset so two blobs never share the exact same wobble.
-    var seed: Double = 0
-    /// Overall wobble strength (fraction of radius).
-    var amplitude: Double = 0.06
-    /// Slight vertical squash to read as "weighted" / sitting.
-    var squash: Double = 0.96
 
     var animatableData: Double {
         get { morph }
         set { morph = newValue }
     }
 
+    // komoMochi keyframes. Per corner order [TL, TR, BR, BL]:
+    //   h = horizontal radii (% of width), v = vertical radii (% of height).
+    // Matches: border-radius: a% b% c% d% / e% f% g% h%
+    private static let keyframes: [(h: [Double], v: [Double])] = [
+        (h: [56, 44, 47, 53], v: [64, 66, 38, 36]),   // 0%
+        (h: [50, 50, 43, 57], v: [60, 63, 41, 40]),   // 25%
+        (h: [47, 53, 52, 48], v: [69, 59, 43, 33]),   // 50%
+        (h: [54, 46, 48, 52], v: [61, 65, 37, 39]),   // 75%
+        (h: [56, 44, 47, 53], v: [64, 66, 38, 36]),   // 100% (== 0%)
+    ]
+    private static let stops: [Double] = [0, 0.25, 0.5, 0.75, 1.0]
+
     func path(in rect: CGRect) -> Path {
-        let cx = rect.midX
-        let cy = rect.midY
-        let baseR = min(rect.width, rect.height) / 2
-        let segments = 64
-        var points: [CGPoint] = []
-        points.reserveCapacity(segments)
+        let p = morph - floor(morph)               // wrap to 0...1
 
-        for i in 0..<segments {
-            let a = Double(i) / Double(segments) * 2 * .pi
-            // Three desynced harmonics → asymmetric, living deformation.
-            let r = baseR * (1
-                + amplitude * sin(3 * a + morph + seed)
-                + amplitude * 0.6 * sin(2 * a - morph * 0.8 + seed * 1.7)
-                + amplitude * 0.35 * sin(5 * a + morph * 1.3 + seed * 0.5))
-            let x = cx + cos(a) * r
-            // Apply the gentle squash so the base feels grounded.
-            let y = cy + sin(a) * r * squash
-            points.append(CGPoint(x: x, y: y))
+        // Find the active keyframe segment and ease across it.
+        var i = 0
+        while i < BlobShape.stops.count - 2 && p > BlobShape.stops[i + 1] { i += 1 }
+        let a = BlobShape.keyframes[i]
+        let b = BlobShape.keyframes[i + 1]
+        let span = BlobShape.stops[i + 1] - BlobShape.stops[i]
+        let local = span <= 0 ? 0 : (p - BlobShape.stops[i]) / span
+        let e = local * local * (3 - 2 * local)    // smoothstep (ease-in-out)
+
+        func lerp(_ x: Double, _ y: Double) -> CGFloat { CGFloat(x + (y - x) * e) }
+
+        var hr = [CGFloat](repeating: 0, count: 4)
+        var vr = [CGFloat](repeating: 0, count: 4)
+        for c in 0..<4 {
+            hr[c] = lerp(a.h[c], b.h[c]) / 100 * rect.width
+            vr[c] = lerp(a.v[c], b.v[c]) / 100 * rect.height
         }
-        return Path.smoothClosed(points)
+        return BlobShape.roundedBlob(in: rect, hr: hr, vr: vr)
     }
-}
 
-extension Path {
-    /// Build a smooth closed curve through `points` using a Catmull-Rom spline
-    /// converted to cubic Béziers.
-    static func smoothClosed(_ points: [CGPoint]) -> Path {
-        var path = Path()
-        let n = points.count
-        guard n > 2 else {
-            path.addLines(points)
-            path.closeSubpath()
-            return path
-        }
-        path.move(to: points[0])
-        for i in 0..<n {
-            let p0 = points[(i - 1 + n) % n]
-            let p1 = points[i]
-            let p2 = points[(i + 1) % n]
-            let p3 = points[(i + 2) % n]
-            let c1 = CGPoint(x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6)
-            let c2 = CGPoint(x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6)
-            path.addCurve(to: p2, control1: c1, control2: c2)
-        }
-        path.closeSubpath()
-        return path
+    /// A rounded rectangle with independent elliptical radii per corner
+    /// ([TL, TR, BR, BL]), drawn with cubic-Bézier quarter-ellipses.
+    static func roundedBlob(in rect: CGRect, hr: [CGFloat], vr: [CGFloat]) -> Path {
+        let k: CGFloat = 0.5522847498              // circle/ellipse Bézier constant
+        let xL = rect.minX, xR = rect.maxX
+        let yT = rect.minY, yB = rect.maxY
+
+        var p = Path()
+        // Start on the top edge, just right of the top-left corner.
+        p.move(to: CGPoint(x: xL + hr[0], y: yT))
+        p.addLine(to: CGPoint(x: xR - hr[1], y: yT))
+        // Top-right corner.
+        p.addCurve(to: CGPoint(x: xR, y: yT + vr[1]),
+                   control1: CGPoint(x: xR - hr[1] + hr[1] * k, y: yT),
+                   control2: CGPoint(x: xR, y: yT + vr[1] - vr[1] * k))
+        p.addLine(to: CGPoint(x: xR, y: yB - vr[2]))
+        // Bottom-right corner.
+        p.addCurve(to: CGPoint(x: xR - hr[2], y: yB),
+                   control1: CGPoint(x: xR, y: yB - vr[2] + vr[2] * k),
+                   control2: CGPoint(x: xR - hr[2] + hr[2] * k, y: yB))
+        p.addLine(to: CGPoint(x: xL + hr[3], y: yB))
+        // Bottom-left corner.
+        p.addCurve(to: CGPoint(x: xL, y: yB - vr[3]),
+                   control1: CGPoint(x: xL + hr[3] - hr[3] * k, y: yB),
+                   control2: CGPoint(x: xL, y: yB - vr[3] + vr[3] * k))
+        p.addLine(to: CGPoint(x: xL, y: yT + vr[0]))
+        // Top-left corner.
+        p.addCurve(to: CGPoint(x: xL + hr[0], y: yT),
+                   control1: CGPoint(x: xL, y: yT + vr[0] - vr[0] * k),
+                   control2: CGPoint(x: xL + hr[0] - hr[0] * k, y: yT))
+        p.closeSubpath()
+        return p
     }
 }

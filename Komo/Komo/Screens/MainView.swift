@@ -44,7 +44,7 @@ struct MainView: View {
                 .padding(.bottom, 8)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 50)
+        .padding(.top, 8)   // sits just below the safe-area inset
     }
 
     // MARK: Insight card
@@ -94,27 +94,29 @@ struct MainView: View {
 
     private var companionStage: some View {
         VStack(spacing: 6) {
-            ZStack(alignment: .top) {
+            ZStack {
+                BlobView(size: 196, cute: true, hue: app.dailyHue,
+                         // tapping cycles the insight bubble
+                         style: app.blobStyle, eyes: app.eyes, legs: app.legs,
+                         motion: app.character.motion,
+                         onTap: { withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { app.tapCompanion() } },
+                         namespace: namespace, geometryID: "companion")
+                    .accessibilityLabel("\(app.companionDisplayName), your companion. Double tap for an insight.")
+
+                ForEach(feedItems) { item in
+                    FeedItemView(item: item) { remove(item) }
+                }
+            }
+            // The blob defines the stage height; the bubble is a non-layout
+            // overlay so it never pushes the creature down.
+            .frame(width: 196, height: 196)
+            .overlay(alignment: .top) {
                 if app.bubbleShown {
                     SpeechBubble(text: app.currentInsightLine)
-                        .offset(y: -8)
-                        .zIndex(2)
+                        .fixedSize()
+                        .offset(y: -54)
+                        .zIndex(3)
                 }
-
-                ZStack {
-                    BlobView(size: 196, cute: true, hue: app.dailyHue,
-                             // tapping cycles the insight bubble
-                             style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                             motion: app.character.motion,
-                             onTap: { withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { app.tapCompanion() } },
-                             namespace: namespace, geometryID: "companion")
-                        .accessibilityLabel("\(app.companionDisplayName), your companion. Double tap for an insight.")
-
-                    ForEach(feedItems) { item in
-                        FeedItemView(item: item) { remove(item) }
-                    }
-                }
-                .padding(.top, 70)
             }
 
             // ground shadow
@@ -180,13 +182,15 @@ struct MainView: View {
     // MARK: Feed / Quest / Grow
 
     private var actionButtons: some View {
-        HStack(spacing: 10) {
-            ActionButton(system: "leaf.fill", title: "Feed") { feed() }
-            ActionButton(system: "puzzlepiece.fill", title: "Quest") {
-                withAnimation(.spring(response: 0.4)) { app.tapCompanion() }
-            }
-            ActionButton(system: "sparkles", title: "Grow") {
-                withAnimation(.spring(response: 0.4)) { app.tapCompanion() }
+        GlassCluster(spacing: 10) {
+            HStack(spacing: 10) {
+                ActionButton(system: "leaf.fill", title: "Feed") { feed() }
+                ActionButton(system: "puzzlepiece.fill", title: "Quest") {
+                    withAnimation(.spring(response: 0.4)) { app.tapCompanion() }
+                }
+                ActionButton(system: "sparkles", title: "Grow") {
+                    withAnimation(.spring(response: 0.4)) { app.tapCompanion() }
+                }
             }
         }
     }
@@ -201,8 +205,8 @@ struct MainView: View {
             NavItem(system: "gearshape", title: "Settings", selected: false) { app.go(.customize) }
         }
         .padding(7)
-        .background(Color(hex: 0x182E22).opacity(0.32), in: RoundedRectangle(cornerRadius: Theme.Radius.nav, style: .continuous))
-        .komoGlass(RoundedRectangle(cornerRadius: Theme.Radius.nav, style: .continuous))
+        .komoGlass(RoundedRectangle(cornerRadius: Theme.Radius.nav, style: .continuous),
+                   tint: Color(hex: 0x182E22).opacity(0.45))
         .overlay(RoundedRectangle(cornerRadius: Theme.Radius.nav).strokeBorder(.white.opacity(0.24), lineWidth: 1))
     }
 
@@ -238,7 +242,7 @@ private struct ActionButton: View {
                     .shadow(color: .black.opacity(0.25), radius: 6, y: 1)
             }
             .frame(maxWidth: .infinity).frame(height: 106)
-            .komoGlassCard(cornerRadius: Theme.Radius.action, fillOpacity: 0.16, strokeOpacity: 0.42, shadow: false, interactive: true)
+            .komoGlassButton(cornerRadius: Theme.Radius.action, strokeOpacity: 0.42)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)

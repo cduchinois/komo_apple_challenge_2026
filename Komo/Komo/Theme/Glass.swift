@@ -61,6 +61,35 @@ extension View {
                 x: 0, y: shadow ? 16 : 0
             )
     }
+
+    /// A *pure* Liquid Glass surface for tappable controls: no opaque fill on top
+    /// of the glass (that's what was flattening the buttons), just real
+    /// interactive `glassEffect` + a hairline rim. Use inside a `GlassCluster`.
+    func komoGlassButton(
+        cornerRadius: CGFloat,
+        tint: Color? = nil,
+        strokeOpacity: Double = 0.45
+    ) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        return self
+            .komoGlass(shape, tint: tint, interactive: true)
+            .overlay(shape.strokeBorder(Color.white.opacity(strokeOpacity), lineWidth: 1))
+    }
+}
+
+/// Wraps a cluster of glass controls in an iOS 26 `GlassEffectContainer` so their
+/// glass blends and reflects as one continuous material. Passthrough pre-26.
+struct GlassCluster<Content: View>: View {
+    var spacing: CGFloat = 10
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: spacing) { content }
+        } else {
+            content
+        }
+    }
 }
 
 /// A circular glass back-button, reused on every onboarding header
@@ -74,8 +103,8 @@ struct GlassBackButton: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 42, height: 42)
-                .komoGlassCard(cornerRadius: 21, fillOpacity: 0.16, strokeOpacity: 0.28, interactive: true)
-                .clipShape(Circle())
+                .komoGlass(Circle(), interactive: true)
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.4), lineWidth: 1))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Back")
