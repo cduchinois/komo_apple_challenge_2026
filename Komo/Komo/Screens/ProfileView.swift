@@ -34,8 +34,8 @@ struct ProfileView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 BlobView(size: 132, cute: true, hue: app.dailyHue,
-                         motion: app.character.motion,
                          style: app.blobStyle, eyes: app.eyes, legs: app.legs,
+                         motion: app.character.motion,
                          namespace: namespace, geometryID: "companion")
                     .padding(.vertical, 4)
 

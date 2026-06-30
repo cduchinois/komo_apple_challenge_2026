@@ -103,9 +103,9 @@ struct MainView: View {
 
                 ZStack {
                     BlobView(size: 196, cute: true, hue: app.dailyHue,
-                             motion: app.character.motion,
                              // tapping cycles the insight bubble
                              style: app.blobStyle, eyes: app.eyes, legs: app.legs,
+                             motion: app.character.motion,
                              onTap: { withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { app.tapCompanion() } },
                              namespace: namespace, geometryID: "companion")
                         .accessibilityLabel("\(app.companionDisplayName), your companion. Double tap for an insight.")

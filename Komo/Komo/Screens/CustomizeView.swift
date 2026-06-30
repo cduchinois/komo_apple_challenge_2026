@@ -22,8 +22,8 @@ struct CustomizeView: View {
                 }
 
                 BlobView(size: 150, cute: true, hue: app.dailyHue,
-                         motion: app.character.motion,
                          style: app.blobStyle, eyes: app.eyes, legs: app.legs,
+                         motion: app.character.motion,
                          mood: .float, namespace: namespace, geometryID: "companion")
                     .frame(maxWidth: .infinity)
                     .frame(height: 180)

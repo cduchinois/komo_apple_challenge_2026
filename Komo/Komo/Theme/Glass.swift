@@ -22,15 +22,20 @@ extension View {
         interactive: Bool = false
     ) -> some View {
         if #available(iOS 26.0, *) {
-            var glass: Glass = .regular
-            if let tint { glass = glass.tint(tint) }
-            if interactive { glass = glass.interactive() }
-            self.glassEffect(glass, in: shape)
+            self.glassEffect(Self.makeKomoGlass(tint: tint, interactive: interactive), in: shape)
         } else {
             self
                 .background(.ultraThinMaterial, in: shape)
                 .overlay(shape.stroke(Color.white.opacity(0.25), lineWidth: 1))
         }
+    }
+
+    @available(iOS 26.0, *)
+    private static func makeKomoGlass(tint: Color?, interactive: Bool) -> Glass {
+        var glass: Glass = .regular
+        if let tint { glass = glass.tint(tint) }
+        if interactive { glass = glass.interactive() }
+        return glass
     }
 
     /// A frosted translucent-white card the way the prototype draws its insight
