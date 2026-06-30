@@ -1,6 +1,6 @@
 # KOMO
 
-> A private, on-device AI companion for Apple users who want to understand and protect their daily energy — without logging, streaks, dashboards, or compromising personal data.
+**KOMO is a private, on-device AI companion for Apple users who want to understand and protect their daily energy — without logging, streaks, dashboards, or compromising personal data.**
 
 ---
 
@@ -17,7 +17,7 @@ They do not know:
 - why they feel drained
 - when their energy starts dropping
 - what restores them
-- which small actions actually help them feel better
+- which small actions actually help them recharge
 
 Apple devices already capture many signals related to energy — sleep, movement, workouts, screen time, calendar load, sitting time, HRV, heart rate, and Focus modes. But this data is fragmented across apps and rarely becomes simple, personal insight.
 
@@ -45,7 +45,7 @@ Most health and productivity apps focus on habits, moods, tasks, streaks, or das
 
 KOMO helps you understand where your energy comes from, where it goes, and how to protect it.
 
-### 2.2 One simple data point: your daily energy level
+### 2.2 One unique data point: your daily energy level
 
 Your energy level is influenced by what charges you and what drains you.
 
@@ -197,7 +197,7 @@ Later, after the walk, KOMO gives the user Sunberries. The user feeds KOMO, and 
 
 ---
 
-## 7. YC-Style 30-Second Pitch
+## 7. 30-Second Pitch
 
 KOMO is a private, on-device AI companion for Apple users who want to understand and protect their daily energy without logging, streaks, dashboards, or compromising personal data.
 
