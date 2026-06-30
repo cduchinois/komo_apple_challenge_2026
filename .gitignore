@@ -1,0 +1,19 @@
+# Xcode user data
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad
+DerivedData/
+build/
+
+# macOS
+.DS_Store
+
+# SplineRuntime (too large, teammate installs separately)
+SplineRuntime/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+xcuserdata/
+*.xcuserstate
