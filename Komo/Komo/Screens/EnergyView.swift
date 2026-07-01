@@ -31,9 +31,12 @@ struct EnergyView: View {
                         spokes: 20, period: 34, reversed: false, blur: 3)
                 SunRays(diameter: 200, color: Color(hex: 0xFFF0AA).opacity(0.20),
                         spokes: 15, period: 52, reversed: true, blur: 2)
-                BlobView(size: 128, cute: true, hue: app.dailyHue,
-                         style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                         mood: .listen, namespace: namespace, geometryID: "companion")
+                // TODO(mascot-rollout): "listen" mood + hue/style/eyes/legs
+                // dropped — manual's default idle is used everywhere.
+                KomoMascotView(size: KomoMascotView.standardSize,
+                               namespace: namespace,
+                               geometryID: "companion",
+                               accessibilityLabelText: app.companionDisplayName)
             }
             // Pin the stage to the container width so the fixed-size halo/rays
             // don't force the parent VStack wider than the padded content area

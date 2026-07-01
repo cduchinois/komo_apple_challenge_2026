@@ -43,10 +43,13 @@ struct ProfileView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                BlobView(size: 132, cute: true, hue: app.dailyHue,
-                         style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                         motion: app.character.motion,
-                         namespace: namespace, geometryID: "companion")
+                // TODO(mascot-rollout): character.motion / hue / style / eyes /
+                // legs have no equivalent in KomoMascotView; manual's default
+                // idle is used. Customize screen still stores these preferences.
+                KomoMascotView(size: KomoMascotView.standardSize,
+                               namespace: namespace,
+                               geometryID: "companion",
+                               accessibilityLabelText: app.companionDisplayName)
                     .padding(.vertical, 4)
 
                 Text(app.companionDisplayName)

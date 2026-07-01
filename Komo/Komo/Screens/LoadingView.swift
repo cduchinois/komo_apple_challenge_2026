@@ -20,9 +20,12 @@ struct LoadingView: View {
 
     var body: some View {
         VStack(spacing: 36) {
-            BlobView(size: 170, cute: true, hue: app.dailyHue,
-                     style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                     mood: .float, namespace: namespace, geometryID: "companion")
+            // TODO(mascot-rollout): old hue/style/eyes/legs/mood dropped —
+            // the manual defines a single idle motion used everywhere.
+            KomoMascotView(size: KomoMascotView.standardSize,
+                           namespace: namespace,
+                           geometryID: "companion",
+                           accessibilityLabelText: app.companionDisplayName)
 
             VStack(spacing: 16) {
                 Text(caption)

@@ -23,10 +23,13 @@ struct RestoresView: View {
 
             ZStack {
                 GlowHalo(color: Color(hex: 0x96EBA0).opacity(0.38), diameter: 150, period: 3.2)
-                BlobView(size: 138, cute: true, hue: app.dailyHue,
-                         style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                         namespace: namespace, geometryID: "companion")
-                ChargeFill(size: 138)
+                // TODO(mascot-rollout): hue/style/eyes/legs dropped — manual's
+                // default idle used. Size unified to KomoMascotView.standardSize.
+                KomoMascotView(size: KomoMascotView.standardSize,
+                               namespace: namespace,
+                               geometryID: "companion",
+                               accessibilityLabelText: app.companionDisplayName)
+                ChargeFill(size: KomoMascotView.standardSize)
             }
             .frame(maxHeight: .infinity)
 

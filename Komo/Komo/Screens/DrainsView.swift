@@ -20,9 +20,13 @@ struct DrainsView: View {
 
             QuestionTitle(text: "what usually\ndrains you?", subtitle: "select all that apply")
 
-            BlobView(size: 132, cute: true, tired: true, hue: app.dailyHue,
-                     style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                     mood: .tired, namespace: namespace, geometryID: "companion")
+            // TODO(mascot-rollout): "tired" mood and hue/style/eyes/legs
+            // have no equivalent in KomoMascotView; manual's default idle
+            // is used everywhere.
+            KomoMascotView(size: KomoMascotView.standardSize,
+                           namespace: namespace,
+                           geometryID: "companion",
+                           accessibilityLabelText: app.companionDisplayName)
                 .frame(maxHeight: .infinity)
 
             FlowChips(options: options, selected: app.drains) { label in

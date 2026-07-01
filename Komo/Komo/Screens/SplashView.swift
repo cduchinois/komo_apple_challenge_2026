@@ -15,12 +15,15 @@ struct SplashView: View {
     @State private var appeared = false
 
     var body: some View {
-        VStack(spacing: 34) {
+        // Tightened vertical rhythm: mascot bumped ~28% larger, spacing
+        // reduced so the mascot + KOMO wordmark read as one centered unit.
+        VStack(spacing: 12) {
             ZStack {
                 GlowHalo(color: Color(hex: 0xB0E8C4).opacity(0.55), diameter: 236)
-                BlobView(size: 156, cute: true, hue: app.dailyHue,
-                         style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                         namespace: namespace, geometryID: "companion")
+                KomoMascotView(size: 220,
+                               namespace: namespace,
+                               geometryID: "companion",
+                               accessibilityLabelText: app.companionDisplayName)
                     .scaleEffect(appeared ? 1 : 0.6)
                     .opacity(appeared ? 1 : 0)
             }

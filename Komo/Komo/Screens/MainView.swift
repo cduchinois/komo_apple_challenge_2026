@@ -206,20 +206,29 @@ struct MainView: View {
     // MARK: 3. Companion (blob) — tap = small reaction, no navigation
 
     private var companionStage: some View {
+        // Home spacing was tuned for a 170pt blob; now uses the shared
+        // KomoMascotView.standardSize (220pt). The insight-card gap above
+        // and the energy-hero gap below already absorb the extra height
+        // via their .padding(.top) offsets.
         VStack(spacing: 4) {
             ZStack {
-                BlobView(size: 170, cute: true, hue: app.dailyHue,
-                         style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                         motion: app.character.motion,
-                         onTap: { blobReact() },
-                         namespace: namespace, geometryID: "companion")
+                // TODO(mascot-rollout): character.motion / hue / style / eyes /
+                // legs dropped — manual's default idle is used everywhere.
+                // Tap reaction (blobReact) + feed drop/rise + love-back still
+                // wire through: the scaleEffect(blobSquash) and the feed/heart
+                // overlays live in the same ZStack and target the mascot's
+                // center identically to before.
+                KomoMascotView(size: KomoMascotView.standardSize,
+                               onTap: { blobReact() },
+                               namespace: namespace,
+                               geometryID: "companion",
+                               accessibilityLabelText: "\(app.companionDisplayName), your companion. Double tap for a reaction.")
                     .scaleEffect(blobSquash)
-                    .accessibilityLabel("\(app.companionDisplayName), your companion. Double tap for a reaction.")
 
                 if showHeart {
                     Text("❤️")
                         .font(.system(size: 22))
-                        .offset(y: -70)
+                        .offset(y: -90)
                         .allowsHitTesting(false)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
@@ -228,7 +237,7 @@ struct MainView: View {
                     FeedItemView(item: item) { remove(item) }
                 }
             }
-            .frame(width: 170, height: 170)
+            .frame(width: KomoMascotView.standardSize, height: KomoMascotView.standardSize)
 
             // ground shadow
             Ellipse()
