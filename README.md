@@ -1,4 +1,6 @@
 # KOMO
+<img width="1520" height="656" alt="Banner Revision" src="https://github.com/user-attachments/assets/f1a3b2aa-55b9-42cf-b0f5-d59ec9c46d1c" />
+
 
 **KOMO is a private, on-device AI companion for Apple users who want to understand and protect their daily energy — without logging, streaks, dashboards, or compromising personal data.**
 
