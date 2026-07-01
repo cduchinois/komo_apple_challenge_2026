@@ -13,11 +13,9 @@ struct LoadingView: View {
 
     private var caption: String {
         let p = app.loadingPct
-        let name = app.companionDisplayName
-        if p < 33 { return "Waking \(name)…" }
-        if p < 66 { return "Gathering today’s energy…" }
-        if p < 95 { return "Reading your signals…" }
-        return "Almost there…"
+        if p < 40 { return "reading your signals…" }
+        if p < 75 { return "looking for patterns…" }
+        return "building your first energy check-in…"
     }
 
     var body: some View {

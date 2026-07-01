@@ -41,10 +41,14 @@ Capabilities** ▸ pick your Team (bundle id `com.komo.companion`, change if tak
 ## 3. What you'll see (screen flow)
 
 ```
-Splash ─2.6s→ Intro (typed greeting) ─Let's go→ Energy ─pick→ Sleep ─pick→
-   Health/Manual → Drains (max 2) → Restores (max 2 + charge fill) →
-   Loading (bar fills) → Main
+Splash ─2.6s→ Hook (typewriter) ─let's go→ Q1 switched-on ─pick→
+   Q2 energy-now ─pick→ Q3 recharge (multi + charge fill) →
+   Q4 drains (multi) → Signals (permissions) → Charging → Main
 ```
+
+Q3/Q4 are unlimited multi-select; "not sure yet" is mutually exclusive.
+Signals toggles are all OFF by default — the primary button reads "activate all"
+until at least one is on, then "continue".
 
 From **Main**:
 - **Tap the blob** → a speech-bubble insight pops in (cycles each tap).
@@ -53,7 +57,6 @@ From **Main**:
 - **Energy reading (ⓘ)** → the **Stats** scroll (today's passive signals).
 - **"Already 12 Days Together"** / **Profile** tab → the **Profile** page.
 - **Settings** tab → **Customize** (name, surface, eyes, legs, motion, voice, world).
-- **"I already have a companion"** on Intro → the **Welcome back** screen.
 
 Turn on **Settings ▸ Accessibility ▸ Motion ▸ Reduce Motion** to see every
 animation fall back to a calm static pose.
