@@ -608,22 +608,113 @@ private struct RechargeSheet: View {
 // MARK: - Energy info sheet (placeholder — TODO: signal summary)
 
 private struct EnergyInfoSheet: View {
-    var body: some View {
-        VStack(spacing: 14) {
-            Capsule().fill(.secondary.opacity(0.4)).frame(width: 40, height: 4).padding(.top, 8)
+    // Tu pourras injecter ton model ou snapshot ici plus tard pour lier les vraies variables
 
-            Text("What shapes today's energy")
-                .font(Theme.Font.title(18))
-                .padding(.top, 6)
-            // TODO: real signal summary (sleep + movement + calendar load).
-            Text("Based on sleep, movement, and calendar load.")
-                .font(Theme.Font.body(14))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-            Spacer()
+    var body: some View {
+        VStack(spacing: 20) {
+            // Drag handle du bas de la feuille modale
+            Capsule()
+                .fill(.secondary.opacity(0.4))
+                .frame(width: 40, height: 4)
+                .padding(.top, 8)
+
+            VStack(spacing: 6) {
+                Text("What shapes today's energy")
+                    .font(Theme.Font.title(18))
+                    .foregroundStyle(.primary)
+
+                Text("Based on your physical recovery and cognitive load signals.")
+                    .font(Theme.Font.body(14))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+            }
+            
+            // --- ZONE DE DONNÉES / SIGNAL SUMMARY ---
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 24) {
+                    
+                    // 🟢 SECTION RÉCUPÉRATION (RECOVERY)
+                    VStack(alignment: .leading, spacing: 14) {
+                        Label("Facteurs de Récupération", systemImage: "arrow.down.heart.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.green)
+                            .padding(.leading, 4)
+                        
+                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 14) {
+                            DataRow(icon: "bed.double.fill", name: "Sommeil (Sleep)", description: "Durée, prof., paradoxal, réveils", value: "88/100")
+                            Divider().gridCellUnsizedAxes(.horizontal)
+                            DataRow(icon: "waveform.path.ecg", name: "VFC / HRV", description: "Moyenne SDNN vs baseline 30j", value: "65 ms")
+                            Divider().gridCellUnsizedAxes(.horizontal)
+                            DataRow(icon: "heart.fill", name: "FC au Repos (RHR)", description: "BPM au repos vs habituel", value: "56 BPM")
+                            Divider().gridCellUnsizedAxes(.horizontal)
+                            DataRow(icon: "figure.walk", name: "Activité Légère", description: "Pas (obj. 7.5k) & effort léger", value: "6,400 pas")
+                        }
+                        .padding(.horizontal, 8)
+                    }
+                    
+                    // ⚡ SECTION CHARGE (LOAD)
+                    VStack(alignment: .leading, spacing: 14) {
+                        Label("Facteurs de Charge", systemImage: "bolt.batteryblock.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.orange)
+                            .padding(.leading, 4)
+                        
+                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 14) {
+                            DataRow(icon: "brain.head.profile", name: "Stress Physiologique", description: "Analyse CoreML de la FC", value: "2h Élevé")
+                            Divider().gridCellUnsizedAxes(.horizontal)
+                            DataRow(icon: "calendar", name: "Charge Mentale (Agenda)", description: "Événements EventKit (capé à 8)", value: "4 Réunions")
+                            Divider().gridCellUnsizedAxes(.horizontal)
+                            DataRow(icon: "bolt.heart.fill", name: "Entraînement Intense", description: "Minutes d'intensité > 6 METs", value: "35 mins")
+                        }
+                        .padding(.horizontal, 8)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+            }
+            
+            Spacer(minLength: 0)
         }
         .padding(.bottom, 24)
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 }
+
+// MARK: - Composant Ligne de Signal Réutilisable
+private struct DataRow: View {
+    var icon: String
+    var name: String
+    var description: String
+    var value: String
+    
+    var body: some View {
+        GridRow(alignment: .center) {
+            // Icone + Titre & sous-titre explicatif
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                    .frame(width: 24, alignment: .center)
+                    .foregroundStyle(.secondary)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    Text(description)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            
+            Spacer(minLength: 16)
+            
+            // La donnée brute finale à droite, épurée
+            Text(value)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.primary)
+        }
+    }
+}
+

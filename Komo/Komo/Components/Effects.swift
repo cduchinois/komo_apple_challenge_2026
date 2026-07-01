@@ -214,26 +214,98 @@ struct StepDots: View {
 
 // MARK: - Speech bubble (komoPop)
 
+import SwiftUI
+
 struct SpeechBubble: View {
     var text: String
 
     var body: some View {
-        Text(text)
-            .font(Theme.Font.body(15, weight: .semibold))
-            .foregroundStyle(Theme.Palette.inkSoft)
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .frame(maxWidth: 260)
-            .komoGlassCard(cornerRadius: 22, fillOpacity: 0.7, strokeOpacity: 0.75, shadow: true)
-            .overlay(alignment: .bottom) {
-                BubbleTail()
-                    .fill(Color.white.opacity(0.7))
-                    .frame(width: 18, height: 12)
-                    .offset(y: 10)
+        VStack(spacing: 16) {
+            // 1. The Core Insight Text
+            Text(text)
+                .font(Theme.Font.body(15, weight: .semibold))
+                .foregroundStyle(Theme.Palette.inkSoft)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+            
+            Divider()
+                .background(Theme.Palette.inkSoft.opacity(0.15))
+            
+            // 2. Data Zone Container
+            VStack(spacing: 14) {
+                // --- SECTEUR RÉCUPÉRATION (RECOVERY) ---
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Récupération", systemImage: "plus.circle.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.green)
+                    
+                    Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
+                        DataRow(icon: "bed.double.fill", name: "Sommeil", value: "85%")
+                        DataRow(icon: "waveform.path.ecg", name: "HRV / VFC", value: "62 ms")
+                        DataRow(icon: "heart.fill", name: "FC Repos", value: "58 BPM")
+                        DataRow(icon: "figure.walk", name: "Mouvement", value: "6,200 pas")
+                    }
+                    .padding(10)
+                    .glassEffect(.clear.interactive()) // Soft transparent glass pill
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                
+                // --- SECTEUR CHARGE (LOAD) ---
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Charge Énergétique", systemImage: "minus.circle.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.orange)
+                    
+                    Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
+                        DataRow(icon: "brain.head.profile", name: "Stress", value: "2h Élevé")
+                        DataRow(icon: "calendar", name: "Agenda", value: "4 Réunions")
+                        DataRow(icon: "bolt.heart.fill", name: "Workouts", value: "45 mins")
+                    }
+                    .padding(10)
+                    .glassEffect(.clear.interactive()) // Soft transparent glass pill
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
             }
-            .transition(.scale(scale: 0.2, anchor: .bottom).combined(with: .opacity))
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
+        // Bumped maxWidth to 285 to cleanly accommodate labels and data points side-by-side
+        .frame(width: 285)
+        .komoGlassCard(cornerRadius: 24, fillOpacity: 0.7, strokeOpacity: 0.75, shadow: true)
+        .overlay(alignment: .bottom) {
+            BubbleTail()
+                .fill(Color.white.opacity(0.7))
+                .frame(width: 18, height: 12)
+                .offset(y: 10)
+        }
+        .transition(.scale(scale: 0.2, anchor: .bottom).combined(with: .opacity))
+    }
+}
+
+// MARK: - Reusable Modern Data Row
+private struct DataRow: View {
+    var icon: String
+    var name: String
+    var value: String // Replace with your dynamic model reference data later
+    
+    var body: some View {
+        GridRow {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 11))
+                    .frame(width: 16, alignment: .center)
+                Text(name)
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundStyle(Theme.Palette.inkSoft.opacity(0.8))
+            
+            Spacer() // Pushes the value metrics to the right margin cleanly
+            
+            Text(value)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Theme.Palette.inkSoft)
+        }
     }
 }
 
