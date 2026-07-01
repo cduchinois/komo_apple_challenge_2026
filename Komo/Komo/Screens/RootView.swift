@@ -1,10 +1,10 @@
 //  RootView.swift
 //  Komo
 //
-//  Hosts the global background and switches between screens. A shared namespace
-//  lets the companion morph between screens via matchedGeometryEffect, and a soft
-//  cross-fade (komoFade) covers everything else. Screen transitions are animated;
-//  the blob carries visual continuity across them.
+//  Hosts the global background and switches between screens. On les écrans
+//  principaux (main/stats/profile/customize), on utilise un TabView natif
+//  iOS 26 avec Liquid Glass automatique — exactement comme Apple Music.
+//  Sur les écrans onboarding, on garde la transition cross-fade.
 
 import SwiftUI
 
@@ -12,15 +12,80 @@ struct RootView: View {
     @State private var app = AppState()
     @Namespace private var blob
 
+    /// True quand on est dans le flux principal (post-onboarding).
+    private var isMainFlow: Bool {
+        switch app.screen {
+        case .main, .stats, .cards, .profile, .customize: return true
+        default: return false
+        }
+    }
+
     /// Non-main screens get the darkening veil so white text stays legible.
     private var darken: Bool { app.screen != .main }
 
-    var body: some View {
-        ZStack {
-            KomoBackground(darken: darken)
+    /// Le TabView pilote directement `app.screen`. Stats vit dans l'onglet Home
+    /// (avec back-button), donc on le mappe à `.main` pour la sélection d'onglet.
+    /// Customize est atteignable depuis Profile — pas d'onglet dédié.
+    private var tabSelection: Binding<KomoScreen> {
+        Binding(
+            get: {
+                switch app.screen {
+                case .stats:     return .main
+                case .customize: return .profile
+                default:         return app.screen
+                }
+            },
+            set: { app.go($0) }
+        )
+    }
 
-            screen
+    var body: some View {
+        Group {
+            if isMainFlow {
+                TabView(selection: tabSelection) {
+                    Tab("Home", systemImage: "house.fill", value: KomoScreen.main) {
+                        ZStack {
+                            KomoBackground(darken: darken)
+                            Group {
+                                if app.screen == .stats {
+                                    StatsView(namespace: blob)
+                                } else {
+                                    MainView(namespace: blob)
+                                }
+                            }
+                        }
+                    }
+                    Tab("Cards", systemImage: "square.stack.fill", value: KomoScreen.cards) {
+                        ZStack {
+                            KomoBackground(darken: darken)
+                            CardsView(namespace: blob)
+                        }
+                    }
+                    Tab("Profile", systemImage: "person.crop.circle", value: KomoScreen.profile) {
+                        // TODO: expose Customize as a row inside ProfileView
+                        // instead of a dedicated tab. For now, .customize
+                        // still routes here.
+                        ZStack {
+                            KomoBackground(darken: darken)
+                            Group {
+                                if app.screen == .customize {
+                                    CustomizeView(namespace: blob)
+                                } else {
+                                    ProfileView(namespace: blob)
+                                }
+                            }
+                        }
+                    }
+                }
+                .tabViewStyle(.sidebarAdaptable)
                 .transition(.opacity)
+            } else {
+                ZStack {
+                    KomoBackground(darken: darken)
+                    onboardingScreen
+                        .transition(.opacity)
+                }
+            }
         }
         .environment(app)
         .animation(.easeInOut(duration: 0.45), value: app.screen)
@@ -28,7 +93,7 @@ struct RootView: View {
     }
 
     @ViewBuilder
-    private var screen: some View {
+    private var onboardingScreen: some View {
         switch app.screen {
         case .splash:    SplashView(namespace: blob)
         case .intro:     IntroView(namespace: blob)
@@ -39,10 +104,8 @@ struct RootView: View {
         case .signals:   SignalsView(namespace: blob)
         case .loading:   LoadingView(namespace: blob)
         case .greeting:  GreetingView(namespace: blob)
-        case .main:      MainView(namespace: blob)
-        case .stats:     StatsView(namespace: blob)
-        case .profile:   ProfileView(namespace: blob)
-        case .customize: CustomizeView(namespace: blob)
+        case .main, .stats, .cards, .profile, .customize:
+            MainView(namespace: blob)   // safety fallback — main-flow handled above
         }
     }
 }

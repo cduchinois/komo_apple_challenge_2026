@@ -9,9 +9,14 @@ import SwiftUI
 
 struct EnergyView: View {
     @Environment(AppState.self) private var app
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var namespace: Namespace.ID
 
     private let options = ["morning", "afternoon", "evening", "late night", "changes a lot"]
+
+    /// Local echo of the chosen option so the row can flash its selected state
+    /// briefly before the screen advances. Nil once the view re-appears.
+    @State private var picked: String? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,19 +35,35 @@ struct EnergyView: View {
                          style: app.blobStyle, eyes: app.eyes, legs: app.legs,
                          mood: .listen, namespace: namespace, geometryID: "companion")
             }
-            .frame(maxHeight: .infinity)
+            // Pin the stage to the container width so the fixed-size halo/rays
+            // don't force the parent VStack wider than the padded content area
+            // (which was pushing the option rows past the trailing edge).
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             VStack(spacing: Theme.Space.optionGap) {
                 ForEach(options, id: \.self) { opt in
-                    OptionRow(label: opt) {
-                        app.energyType = opt
-                        app.go(.now)
+                    OptionRow(label: opt, selected: picked == opt) {
+                        pick(opt)
                     }
                 }
             }
+            .frame(maxWidth: .infinity)
+            .disabled(picked != nil)
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, Theme.Space.screenH)
-        .padding(.top, 64)
+        .padding(.top, Theme.Space.screenTop)
         .padding(.bottom, 32)
+    }
+
+    /// Single tap → mark selected, hold the visual state briefly, then advance.
+    private func pick(_ opt: String) {
+        guard picked == nil else { return }
+        picked = opt
+        app.energyType = opt
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(reduceMotion ? 120 : 200))
+            app.go(.now)
+        }
     }
 }

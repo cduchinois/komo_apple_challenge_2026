@@ -62,6 +62,7 @@ enum Theme {
 
     enum Space {
         static let screenH: CGFloat = 24      // horizontal screen padding
+        static let screenTop: CGFloat = 10    // gap below the safe-area top for the header row
         static let optionGap: CGFloat = 10
         static let sectionGap: CGFloat = 16
         static let cardPad: CGFloat = 18

@@ -82,7 +82,7 @@ struct SignalsView: View {
             .padding(.top, 12)
         }
         .padding(.horizontal, Theme.Space.screenH)
-        .padding(.top, 60)
+        .padding(.top, Theme.Space.screenTop)
         .padding(.bottom, 28)
         .animation(.easeInOut(duration: 0.2), value: app.auth)
     }

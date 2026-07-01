@@ -20,7 +20,7 @@ struct SplashView: View {
                 GlowHalo(color: Color(hex: 0xB0E8C4).opacity(0.55), diameter: 236)
                 BlobView(size: 156, cute: true, hue: app.dailyHue,
                          style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                         mood: .none, namespace: namespace, geometryID: "companion")
+                         namespace: namespace, geometryID: "companion")
                     .scaleEffect(appeared ? 1 : 0.6)
                     .opacity(appeared ? 1 : 0)
             }

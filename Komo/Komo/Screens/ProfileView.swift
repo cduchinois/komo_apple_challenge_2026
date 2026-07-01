@@ -71,7 +71,7 @@ struct ProfileView: View {
                 .padding(.top, 4)
             }
             .padding(.horizontal, Theme.Space.screenH)
-            .padding(.top, 62)
+            .padding(.top, Theme.Space.screenTop)
             .padding(.bottom, 44)
         }
     }

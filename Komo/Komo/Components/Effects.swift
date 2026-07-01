@@ -17,34 +17,35 @@ struct KomoBackground: View {
     var darken: Bool
 
     var body: some View {
-        ZStack {
-            Theme.Palette.cream
-            Image("BackgroundImage")
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
-
-            // Top warm sheen -> bottom forest shade (matches the source veil).
-            LinearGradient(
-                stops: [
-                    .init(color: Color(hex: 0xFFFAE4).opacity(0.30), location: 0),
-                    .init(color: .white.opacity(0), location: 0.24),
-                    .init(color: Color(hex: 0x163026).opacity(0.04), location: 0.62),
-                    .init(color: Color(hex: 0x163026).opacity(0.20), location: 1),
-                ],
-                startPoint: .top, endPoint: .bottom)
-
-            if darken {
+        Image("BackgroundImage")
+            .resizable()
+            .scaledToFill()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .clipped()
+            .background(Theme.Palette.cream)   // fallback if the asset is missing
+            .overlay(
+                // Top warm sheen -> bottom forest shade (matches the source veil).
                 LinearGradient(
                     stops: [
-                        .init(color: Color(hex: 0x12281C).opacity(0.55), location: 0),
-                        .init(color: Color(hex: 0x142A1E).opacity(0.34), location: 0.4),
-                        .init(color: Color(hex: 0x102419).opacity(0.52), location: 1),
+                        .init(color: Color(hex: 0xFFFAE4).opacity(0.30), location: 0),
+                        .init(color: .white.opacity(0), location: 0.24),
+                        .init(color: Color(hex: 0x163026).opacity(0.04), location: 0.62),
+                        .init(color: Color(hex: 0x163026).opacity(0.20), location: 1),
                     ],
                     startPoint: .top, endPoint: .bottom)
-            }
-        }
-        .ignoresSafeArea()
+            )
+            .overlay(
+                darken
+                    ? LinearGradient(
+                        stops: [
+                            .init(color: Color(hex: 0x12281C).opacity(0.55), location: 0),
+                            .init(color: Color(hex: 0x142A1E).opacity(0.34), location: 0.4),
+                            .init(color: Color(hex: 0x102419).opacity(0.52), location: 1),
+                        ],
+                        startPoint: .top, endPoint: .bottom)
+                    : nil
+            )
+            .ignoresSafeArea()
     }
 }
 

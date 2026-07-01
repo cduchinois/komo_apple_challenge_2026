@@ -26,7 +26,7 @@ struct DrainsView: View {
                 .frame(maxHeight: .infinity)
 
             FlowChips(options: options, selected: app.drains) { label in
-                app.toggleMulti(\.drains, label)
+                app.toggleDrain(label)
             }
 
             PrimaryButton(title: "next", enabled: !app.drains.isEmpty) {
@@ -35,7 +35,7 @@ struct DrainsView: View {
             .padding(.top, 16)
         }
         .padding(.horizontal, Theme.Space.screenH)
-        .padding(.top, 64)
+        .padding(.top, Theme.Space.screenTop)
         .padding(.bottom, 32)
         .animation(.spring(response: 0.25), value: app.drains)
     }

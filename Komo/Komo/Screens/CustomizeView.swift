@@ -92,7 +92,7 @@ struct CustomizeView: View {
                 .padding(.top, 6)
             }
             .padding(.horizontal, Theme.Space.screenH)
-            .padding(.top, 62)
+            .padding(.top, Theme.Space.screenTop)
             .padding(.bottom, 44)
             .animation(.easeInOut(duration: 0.25), value: app.blobStyle)
             .animation(.easeInOut(duration: 0.25), value: app.eyes)

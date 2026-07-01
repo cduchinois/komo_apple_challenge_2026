@@ -7,8 +7,12 @@
 import SwiftUI
 
 /// A full-width glass row with a label and chevron (energy / sleep questions).
+/// The whole row — including padding and the trailing chevron — is a single tap
+/// target that both selects and advances. The chevron is decorative.
 struct OptionRow: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var label: String
+    var selected: Bool = false
     var action: () -> Void
 
     var body: some View {
@@ -20,14 +24,23 @@ struct OptionRow: View {
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(.white.opacity(selected ? 0.9 : 0.5))
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
             .frame(maxWidth: .infinity)
-            .komoGlassButton(cornerRadius: Theme.Radius.button, strokeOpacity: 0.24)
+            // Full-bounds hit target — the Spacer + padding must register taps.
+            .contentShape(Rectangle())
+            .komoGlassButton(
+                cornerRadius: Theme.Radius.button,
+                tint: selected ? Color.white.opacity(0.22) : nil,
+                strokeOpacity: selected ? 0.92 : 0.24
+            )
+            .scaleEffect(selected ? 1.0 : 0.99)
+            .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.7), value: selected)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
         .accessibilityHint("Selects \(label)")
     }
 }
@@ -45,6 +58,9 @@ struct PillChip: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 13)
+                // Full padded-pill hit target so every tap on the chip registers,
+                // regardless of where inside the padding it lands.
+                .contentShape(Rectangle())
                 .komoGlassButton(
                     cornerRadius: Theme.Radius.chip,
                     tint: selected ? Color.white.opacity(0.22) : nil,
