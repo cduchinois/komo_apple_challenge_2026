@@ -1,0 +1,127 @@
+//  Controls.swift
+//  Komo
+//
+//  Small shared controls used across the onboarding and main screens: glass
+//  option rows, multi-select pills, the primary CTA, and the onboarding header.
+
+import SwiftUI
+
+/// A full-width glass row with a label and chevron (energy / sleep questions).
+struct OptionRow: View {
+    var label: String
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Text(label)
+                    .font(Theme.Font.label(17))
+                    .foregroundStyle(.white)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity)
+            .komoGlassButton(cornerRadius: Theme.Radius.button, strokeOpacity: 0.24)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Selects \(label)")
+    }
+}
+
+/// A multi-select pill (drains / restores), max-2 selection handled by AppState.
+struct PillChip: View {
+    var label: String
+    var selected: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(Theme.Font.label(15))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 13)
+                .komoGlassButton(
+                    cornerRadius: Theme.Radius.chip,
+                    tint: selected ? Color.white.opacity(0.22) : nil,
+                    strokeOpacity: selected ? 0.92 : 0.24)
+                .scaleEffect(selected ? 1.0 : 0.99)
+                .animation(.spring(response: 0.25, dampingFraction: 0.7), value: selected)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+}
+
+/// The light primary CTA used to advance the flow. Dim + disabled until ready.
+struct PrimaryButton: View {
+    var title: String
+    var enabled: Bool = true
+    var filledGreen: Bool = false
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: { if enabled { action() } }) {
+            Text(title)
+                .font(Theme.Font.label(17))
+                .foregroundStyle(foreground)
+                .frame(maxWidth: .infinity)
+                .frame(height: 54)
+                .background(background, in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+                .shadow(color: .black.opacity(enabled ? 0.18 : 0), radius: 12, y: 8)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .animation(.easeInOut(duration: 0.2), value: enabled)
+    }
+
+    private var background: Color {
+        if filledGreen { return Theme.Palette.primaryGreen }
+        return enabled ? Color.white.opacity(0.96) : Color.white.opacity(0.22)
+    }
+    private var foreground: Color {
+        if filledGreen { return .white }
+        return enabled ? Theme.Palette.ink : .white.opacity(0.6)
+    }
+}
+
+/// Back button + progress dots shared by every onboarding question.
+struct OnboardingHeader: View {
+    var step: Int
+    var onBack: () -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            GlassBackButton(action: onBack)
+            StepDots(current: step)
+            Spacer()
+        }
+    }
+}
+
+/// A question title styled like the prototype's 25pt white headings.
+struct QuestionTitle: View {
+    var text: String
+    var subtitle: String? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(text)
+                .font(Theme.Font.display(25))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.3), radius: 14, y: 2)
+                .fixedSize(horizontal: false, vertical: true)
+            if let subtitle {
+                Text(subtitle)
+                    .font(Theme.Font.body(14))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .shadow(color: .black.opacity(0.3), radius: 8, y: 1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}

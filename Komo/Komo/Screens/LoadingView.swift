@@ -1,0 +1,84 @@
+//  LoadingView.swift
+//  Komo
+//
+//  Transition — Bringing your companion to life. The blob floats (komoFloat), the
+//  caption pulses and swaps by threshold, and the bar fills (+3..8% every 110ms)
+//  until 100%, then settles into the main screen after 500ms.
+
+import SwiftUI
+
+struct LoadingView: View {
+    @Environment(AppState.self) private var app
+    var namespace: Namespace.ID
+
+    private var caption: String {
+        let p = app.loadingPct
+        let name = app.companionDisplayName
+        if p < 33 { return "Waking \(name)…" }
+        if p < 66 { return "Gathering today’s energy…" }
+        if p < 95 { return "Reading your signals…" }
+        return "Almost there…"
+    }
+
+    var body: some View {
+        VStack(spacing: 36) {
+            BlobView(size: 170, cute: true, hue: app.dailyHue,
+                     style: app.blobStyle, eyes: app.eyes, legs: app.legs,
+                     mood: .float, namespace: namespace, geometryID: "companion")
+
+            VStack(spacing: 16) {
+                Text(caption)
+                    .font(Theme.Font.body(18, weight: .medium))
+                    .foregroundStyle(.white)
+                    .pulsing()
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.white.opacity(0.22))
+                        Capsule().fill(Color.white)
+                            .frame(width: geo.size.width * CGFloat(app.loadingPct / 100))
+                            .shadow(color: .white.opacity(0.6), radius: 6)
+                            .animation(.linear(duration: 0.15), value: app.loadingPct)
+                    }
+                }
+                .frame(height: 6)
+
+                Text("\(Int(app.loadingPct))%")
+                    .font(Theme.Font.label(13))
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+        }
+        .padding(.horizontal, 36)
+        .padding(.vertical, 80)
+        .task {
+            app.loadingPct = 0
+            while app.loadingPct < 100 {
+                try? await Task.sleep(for: .milliseconds(110))
+                if app.screen != .loading { return }
+                app.loadingPct = min(100, app.loadingPct + (3 + Double.random(in: 0..<5)))
+            }
+            try? await Task.sleep(for: .milliseconds(500))
+            if app.screen == .loading { app.go(.main) }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Bringing your companion to life. \(Int(app.loadingPct)) percent.")
+    }
+}
+
+private extension View {
+    func pulsing() -> some View { modifier(Pulse()) }
+}
+
+private struct Pulse: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        if reduceMotion {
+            content
+        } else {
+            TimelineView(.animation) { tl in
+                let p = (tl.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2)) / 2
+                content.opacity(0.5 + 0.5 * (sin(p * 2 * .pi) * 0.5 + 0.5))
+            }
+        }
+    }
+}
