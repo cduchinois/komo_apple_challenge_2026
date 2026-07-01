@@ -8,19 +8,35 @@ import SwiftUI
 import Observation
 
 /// Every distinct screen in the prototype flow.
+/// Onboarding order: splash → intro(hook) → energy → now → restores → drains →
+/// signals → loading → main.
 enum KomoScreen: Equatable {
     case splash
-    case intro          // greeting text, auto-typed lines + "Let's go"
-    case energy         // when do you have the most energy?
-    case sleep          // how did you sleep? -> health/manual
-    case drains         // what drains you? (max 2)
-    case restores       // what restores you? (max 2)
-    case loading        // bringing your companion to life
+    case intro          // hook: typewriter greeting + "let's go"
+    case energy         // Q1 — when do you feel most switched on?
+    case now            // Q2 — how's your energy right now?
+    case restores       // Q3 — what helps you recharge? (multi-select)
+    case drains         // Q4 — what usually drains you? (multi-select)
+    case signals        // permissions — activate on-device signals
+    case loading        // charging: building your first check-in
     case greeting       // welcome back (returning users)
     case main           // home companion screen
     case stats          // the passive-signals scroll
+    case favorites      // saved companion moments
     case profile        // companion profile summary
     case customize      // edit name / surface / eyes / legs / world
+}
+
+/// On-device signal permissions toggled on the Signals screen.
+/// Card order matches the prototype: health, calendar, screen, notify.
+struct SignalAuth: Equatable {
+    var health = false
+    var calendar = false
+    var screen = false
+    var notify = false
+
+    var anyOn: Bool { health || calendar || screen || notify }
+    var allOn: Bool { health && calendar && screen && notify }
 }
 
 @Observable
@@ -35,13 +51,11 @@ final class AppState {
 
     // MARK: Onboarding answers
     var userName: String = ""
-    var energyType: String? = nil
-    var sleepQuality: String? = nil
-    var sleepAsked = false
-    var sleepManual = false
-    var sleepDuration = ""
-    var drains: [String] = []
-    var restores: [String] = []
+    var energyType: String? = nil     // Q1 — peak time of day
+    var energyNow: String? = nil      // Q2 — energy right now
+    var restores: [String] = []       // Q3 — what recharges (multi)
+    var drains: [String] = []         // Q4 — what drains (multi)
+    var auth = SignalAuth()           // on-device signal permissions
 
     // MARK: Companion configuration
     var characterIndex = 1            // default: Moku (calm)
@@ -60,7 +74,6 @@ final class AppState {
     var bubbleIndex = 0
     var liked = false
     var reminderAdded = false
-    var greetStep = 0                 // 0...7, gates the intro lines + CTA
 
     init(data: EnergyDataProviding = MockDataProvider()) {
         self.data = data
@@ -87,33 +100,54 @@ final class AppState {
 
     // MARK: Onboarding logic
 
-    /// Multi-select with a hard cap of 2 (selecting a 3rd drops the oldest) —
-    /// matches the prototype's `toggleMulti`.
+    /// The label whose selection is mutually exclusive with all others.
+    static let notSureYet = "not sure yet"
+
+    /// Unlimited multi-select, but "not sure yet" is exclusive: picking it clears
+    /// the rest, and picking anything else clears it — matches the prototype's
+    /// `toggleMulti`.
     func toggleMulti(_ keyPath: ReferenceWritableKeyPath<AppState, [String]>, _ label: String) {
         var arr = self[keyPath: keyPath]
-        if let idx = arr.firstIndex(of: label) {
-            arr.remove(at: idx)
-        } else if arr.count >= 2 {
-            arr = [arr[1], label]
+        if label == Self.notSureYet {
+            arr = arr.contains(Self.notSureYet) ? [] : [Self.notSureYet]
         } else {
-            arr.append(label)
+            arr.removeAll { $0 == Self.notSureYet }
+            if let idx = arr.firstIndex(of: label) {
+                arr.remove(at: idx)
+            } else {
+                arr.append(label)
+            }
         }
         self[keyPath: keyPath] = arr
     }
 
-    func pickSleep(_ quality: String) {
-        sleepQuality = quality
-        sleepAsked = true
+    // MARK: Signal permissions
+
+    func toggleAuth(_ keyPath: WritableKeyPath<SignalAuth, Bool>) {
+        auth[keyPath: keyPath].toggle()
+    }
+
+    /// Signals primary button: if nothing is on, flip all on then proceed;
+    /// otherwise proceed straight to charging.
+    func signalsPrimary(then proceed: @escaping () -> Void) {
+        if auth.anyOn {
+            proceed()
+        } else {
+            auth = SignalAuth(health: true, calendar: true, screen: true, notify: true)
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(560))
+                proceed()
+            }
+        }
     }
 
     func resetOnboarding() {
         returning = false
         energyType = nil
-        sleepQuality = nil
-        sleepAsked = false
-        sleepManual = false
+        energyNow = nil
         drains = []
         restores = []
+        auth = SignalAuth()
         companionName = ""
     }
 

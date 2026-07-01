@@ -1,8 +1,9 @@
 //  EnergyView.swift
 //  Komo
 //
-//  Page 3 — Energy peak. The companion listens (komoListen) inside the signature
-//  "sun": a warm glow plus two blurred ray fans rotating in opposite directions.
+//  Page 3 — Q1 "Switched on". The companion listens (komoListen) inside the
+//  signature "sun": a warm glow plus two blurred ray fans counter-rotating.
+//  Single-choice; auto-advances to the "energy now" question.
 
 import SwiftUI
 
@@ -10,14 +11,14 @@ struct EnergyView: View {
     @Environment(AppState.self) private var app
     var namespace: Namespace.ID
 
-    private let options = ["Morning", "Afternoon", "Evening", "It depends"]
+    private let options = ["morning", "afternoon", "evening", "late night", "changes a lot"]
 
     var body: some View {
         VStack(spacing: 0) {
-            OnboardingHeader(step: 1) { app.go(.intro) }
+            OnboardingHeader(step: 0) { app.go(.intro) }
                 .padding(.bottom, 14)
 
-            QuestionTitle(text: "When during the day do you usually have the most energy?")
+            QuestionTitle(text: "when do you feel\nmost switched on?")
 
             ZStack {
                 GlowHalo(color: Color(hex: 0xFFF6CD).opacity(0.4), diameter: 300, period: 4.6)
@@ -35,7 +36,7 @@ struct EnergyView: View {
                 ForEach(options, id: \.self) { opt in
                     OptionRow(label: opt) {
                         app.energyType = opt
-                        app.go(.sleep)
+                        app.go(.now)
                     }
                 }
             }

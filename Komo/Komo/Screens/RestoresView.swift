@@ -1,9 +1,9 @@
 //  RestoresView.swift
 //  Komo
 //
-//  Page 6 — What restores you (final onboarding). The hero is a translucent green
-//  liquid charge filling the blob silhouette (komoCharge) — a cup refilling — with
-//  a soft green halo. The body itself is still on purpose (mood .none).
+//  Page 5 — Q3 "Recharge". The hero is a translucent green liquid charge filling
+//  the blob silhouette (komoCharge) — a cup refilling — with a soft green halo.
+//  Unlimited multi-select; "not sure yet" is exclusive. Next → drains.
 
 import SwiftUI
 
@@ -11,14 +11,15 @@ struct RestoresView: View {
     @Environment(AppState.self) private var app
     var namespace: Namespace.ID
 
-    private let options = ["Sleep", "Moving or walking", "Quiet time", "Focus", "Being outside"]
+    private let options = ["walking", "music", "quiet time", "workout",
+                           "nap / sleep", "outside", "talking", "not sure yet"]
 
     var body: some View {
         VStack(spacing: 0) {
-            OnboardingHeader(step: 4) { app.go(.drains) }
+            OnboardingHeader(step: 2) { app.go(.now) }
                 .padding(.bottom, 14)
 
-            QuestionTitle(text: "What helps you recharge your energy?", subtitle: "Pick up to two.")
+            QuestionTitle(text: "what helps you\nrecharge?", subtitle: "select all that apply")
 
             ZStack {
                 GlowHalo(color: Color(hex: 0x96EBA0).opacity(0.38), diameter: 150, period: 3.2)
@@ -33,8 +34,8 @@ struct RestoresView: View {
                 app.toggleMulti(\.restores, label)
             }
 
-            PrimaryButton(title: "Let’s begin", enabled: !app.restores.isEmpty) {
-                app.go(.loading)
+            PrimaryButton(title: "next", enabled: !app.restores.isEmpty) {
+                app.go(.drains)
             }
             .padding(.top, 16)
         }

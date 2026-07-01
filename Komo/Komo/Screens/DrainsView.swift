@@ -1,8 +1,8 @@
 //  DrainsView.swift
 //  Komo
 //
-//  Page 5 — What drains you. The blob is tired (half-lidded, more saturated,
-//  komoTired). Multi-select, max two; Continue once at least one is picked.
+//  Page 6 — Q4 "Drains". The blob is tired (half-lidded, more saturated,
+//  komoTired). Unlimited multi-select; "not sure yet" is exclusive. Next → signals.
 
 import SwiftUI
 
@@ -10,14 +10,15 @@ struct DrainsView: View {
     @Environment(AppState.self) private var app
     var namespace: Namespace.ID
 
-    private let options = ["Busy schedule", "Scrolling social media", "Poor sleep", "Sitting too long", "Stress"]
+    private let options = ["poor sleep", "screen time", "meetings", "sitting too long",
+                           "intense work", "social plans", "commute / travel", "not sure yet"]
 
     var body: some View {
         VStack(spacing: 0) {
-            OnboardingHeader(step: 3) { app.go(.sleep) }
+            OnboardingHeader(step: 3) { app.go(.restores) }
                 .padding(.bottom, 14)
 
-            QuestionTitle(text: "What tends to make you exhausted?", subtitle: "Pick up to two.")
+            QuestionTitle(text: "what usually\ndrains you?", subtitle: "select all that apply")
 
             BlobView(size: 132, cute: true, tired: true, hue: app.dailyHue,
                      style: app.blobStyle, eyes: app.eyes, legs: app.legs,
@@ -28,8 +29,8 @@ struct DrainsView: View {
                 app.toggleMulti(\.drains, label)
             }
 
-            PrimaryButton(title: "Continue", enabled: !app.drains.isEmpty) {
-                app.go(.restores)
+            PrimaryButton(title: "next", enabled: !app.drains.isEmpty) {
+                app.go(.signals)
             }
             .padding(.top, 16)
         }
