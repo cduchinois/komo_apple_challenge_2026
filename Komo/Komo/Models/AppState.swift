@@ -12,19 +12,21 @@ import Observation
 /// signals → loading → main.
 enum KomoScreen: Equatable {
     case splash
-    case intro          // hook: typewriter greeting + "let's go"
-    case energy         // Q1 — when do you feel most switched on?
-    case now            // Q2 — how's your energy right now?
-    case restores       // Q3 — what helps you recharge? (multi-select)
-    case drains         // Q4 — what usually drains you? (multi-select)
-    case signals        // permissions — activate on-device signals
-    case loading        // charging: building your first check-in
-    case greeting       // welcome back (returning users)
-    case main           // home companion screen
-    case stats          // the passive-signals scroll
-    case cards          // insights, todos & saved cards
-    case profile        // companion profile summary
-    case customize      // edit name / surface / eyes / legs / world
+    case intro                 // hook: typewriter greeting + "let's go"
+    case energy                // Q1 — when do you feel most switched on?
+    case now                   // Q2 — how's your energy right now?
+    case sleep                 // Q sleep — did you sleep well last night?
+    case healthPermission      // contextual health-data permission request
+    case restores              // Q3 — what helps you recharge? (multi-select)
+    case drains                // Q4 — what usually drains you? (multi-select)
+    case calendarPermission    // conditional calendar permission (from Q4 drains)
+    case loading               // charging: building your first check-in
+    case greeting              // welcome back (returning users)
+    case main                  // home companion screen
+    case stats                 // the passive-signals scroll
+    case cards                 // insights, todos & saved cards
+    case profile               // companion profile summary
+    case customize             // edit name / surface / eyes / legs / world
 }
 
 // MARK: - Energy level (percent -> word + color)
@@ -198,9 +200,22 @@ final class AppState {
     var userName: String = ""
     var energyType: String? = nil     // Q1 — peak time of day
     var energyNow: String? = nil      // Q2 — energy right now
+    var sleepAnswer: String? = nil    // Q sleep — last-night rating
     var restores: [String] = []       // Q3 — what recharges (multi)
     var drains: [String] = []         // Q4 — what drains (multi)
-    var auth = SignalAuth()           // on-device signal permissions
+    var auth = SignalAuth()           // legacy toggle state, unused by the new
+                                      // contextual flow; kept until Profile
+                                      // reads permissions from PermissionsManager
+                                      // exclusively.
+
+    /// Drains that should trigger the calendar-permission branch (6b).
+    static let calendarBranchDrains: Set<String> = ["meetings", "intense work", "social plans"]
+
+    /// True if the user's Q4 drains selection warrants the calendar permission
+    /// screen right after DrainsView.
+    var needsCalendarPermission: Bool {
+        !drains.isEmpty && drains.contains { Self.calendarBranchDrains.contains($0) }
+    }
 
     // MARK: Companion configuration
     var characterIndex = 1            // default: Moku (calm)
@@ -446,6 +461,7 @@ final class AppState {
         returning = false
         energyType = nil
         energyNow = nil
+        sleepAnswer = nil
         drains = []
         restores = []
         auth = SignalAuth()

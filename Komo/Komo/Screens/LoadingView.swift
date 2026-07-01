@@ -9,6 +9,7 @@ import SwiftUI
 
 struct LoadingView: View {
     @Environment(AppState.self) private var app
+    @Environment(PermissionsManager.self) private var permissions
     var namespace: Namespace.ID
 
     private var caption: String {
@@ -52,13 +53,20 @@ struct LoadingView: View {
         .padding(.horizontal, 36)
         .padding(.vertical, 80)
         .task {
+            // Fire the native notification prompt here (replaces the old
+            // SignalsView toggle wall). The bar keeps filling in parallel —
+            // slowed intentionally so the user has time to read + tap the
+            // system prompt before we move on.
+            Task { await permissions.requestNotifications() }
+
             app.loadingPct = 0
+            // ~50 ticks × 130ms + 1.2s tail ≈ 7–8s total.
             while app.loadingPct < 100 {
-                try? await Task.sleep(for: .milliseconds(110))
+                try? await Task.sleep(for: .milliseconds(130))
                 if app.screen != .loading { return }
-                app.loadingPct = min(100, app.loadingPct + (3 + Double.random(in: 0..<5)))
+                app.loadingPct = min(100, app.loadingPct + (1 + Double.random(in: 0..<2)))
             }
-            try? await Task.sleep(for: .milliseconds(500))
+            try? await Task.sleep(for: .milliseconds(1200))
             if app.screen == .loading { app.go(.main) }
         }
         .accessibilityElement(children: .combine)

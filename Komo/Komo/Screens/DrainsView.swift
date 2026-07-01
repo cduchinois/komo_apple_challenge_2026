@@ -15,14 +15,11 @@ struct DrainsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            OnboardingHeader(step: 3) { app.go(.restores) }
+            OnboardingHeader(step: 4) { app.go(.restores) }
                 .padding(.bottom, 14)
 
             QuestionTitle(text: "what usually\ndrains you?", subtitle: "select all that apply")
 
-            // TODO(mascot-rollout): "tired" mood and hue/style/eyes/legs
-            // have no equivalent in KomoMascotView; manual's default idle
-            // is used everywhere.
             KomoMascotView(size: KomoMascotView.standardSize,
                            namespace: namespace,
                            geometryID: "companion",
@@ -34,7 +31,13 @@ struct DrainsView: View {
             }
 
             PrimaryButton(title: "next", enabled: !app.drains.isEmpty) {
-                app.go(.signals)
+                // Contextual branch: only ask for calendar access if the user
+                // picked a drain where it would actually help.
+                if app.needsCalendarPermission {
+                    app.go(.calendarPermission)
+                } else {
+                    app.go(.loading)
+                }
             }
             .padding(.top, 16)
         }

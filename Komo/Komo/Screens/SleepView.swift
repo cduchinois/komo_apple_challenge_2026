@@ -1,17 +1,18 @@
-//  NowView.swift
+//  SleepView.swift
 //  Komo
 //
-//  Page 4 — Q2 "Energy now" (new in V1, replaces the old Sleep screen).
-//  "how's your energy right now?" · single-choice, auto-advances to recharge.
+//  Q sleep — "did you sleep well last night?" · single-choice, auto-advances to
+//  the contextual health-permission screen. Doubles as the first manual data
+//  point if health access is later declined.
 
 import SwiftUI
 
-struct NowView: View {
+struct SleepView: View {
     @Environment(AppState.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var namespace: Namespace.ID
 
-    private let options = ["strong", "okay", "low", "running on fumes"]
+    private let options = ["slept great", "okay", "badly", "barely slept"]
 
     /// Local echo of the chosen option so the row can flash its selected state
     /// briefly before the screen advances.
@@ -19,13 +20,12 @@ struct NowView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            OnboardingHeader(step: 1) { app.go(.energy) }
+            // Shares dot #2 in the 5-dot progress row with HealthPermissionView.
+            OnboardingHeader(step: 2) { app.go(.now) }
                 .padding(.bottom, 14)
 
-            QuestionTitle(text: "how’s your energy\nright now?")
+            QuestionTitle(text: "did you sleep well\nlast night?")
 
-            // TODO(mascot-rollout): "listen" mood + hue/style/eyes/legs
-            // dropped — manual's default idle is used everywhere.
             KomoMascotView(size: KomoMascotView.standardSize,
                            namespace: namespace,
                            geometryID: "companion",
@@ -48,15 +48,13 @@ struct NowView: View {
         .padding(.bottom, 32)
     }
 
-    /// Single tap → mark selected, hold the visual state briefly, then advance
-    /// to the new Sleep question (contextual-permissions flow).
     private func pick(_ opt: String) {
         guard picked == nil else { return }
         picked = opt
-        app.energyNow = opt
+        app.sleepAnswer = opt
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(reduceMotion ? 120 : 200))
-            app.go(.sleep)
+            app.go(.healthPermission)
         }
     }
 }
