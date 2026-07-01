@@ -4,7 +4,7 @@
 //  Home — the single question this screen answers: "What is my energy today,
 //  and what should I do next?" Layout, top to bottom:
 //    1. Header — "Day N with KOMO"
-//    2. Insight card (KOMO noticed / Tiny move / Remind me + Ignore)
+//    2. Reflection card (observation / suggestion / per-card buttons)
 //    3. Companion (blob) — tap = tiny reaction only, not navigation
 //    4. Energy hero — color-graded word + percent (green→red via EnergyLevel)
 //    5. Action area — Feed, Reflect, Recharge (three glass buttons)
@@ -26,6 +26,11 @@ struct MainView: View {
     @State private var showSnackStore = false
     @State private var showRecharge = false
     @State private var showEnergyInfo = false
+    @State private var showNoteSheet = false
+    @State private var showFocusTimer = false
+    @State private var focusDurationSeconds: Int = 180
+    // Toast for brief confirmations after reflection actions.
+    @State private var toast: String? = nil
 
     private var snapshot: EnergySnapshot { app.data.currentSnapshot() }
 
@@ -46,21 +51,41 @@ struct MainView: View {
             actionArea
                 .padding(.top, 18)
         }
-        // Shared horizontal margin token → insight card, energy hero, bar,
+        // Shared horizontal margin token → reflection card, energy hero, bar,
         // and action row all sit inside the same symmetric inset.
         .padding(.horizontal, Theme.Space.screenH)
         .padding(.top, 8)   // sits just below the safe-area inset
+        .overlay(alignment: .top) { toastOverlay }
         .sheet(isPresented: $showSnackStore) {
-            SnackStoreSheet(snacks: AppState.demoSnacks) { snack in
+            SnackStoreSheet { snack in
                 showSnackStore = false
                 feedWithSnack(snack)
             }
+            .environment(app)
         }
         .sheet(isPresented: $showRecharge) {
             RechargeSheet()
         }
         .sheet(isPresented: $showEnergyInfo) {
-            EnergyInfoSheet()
+            EnergyBreakdownSheet(breakdown: app.data.energyBreakdown())
+        }
+        .sheet(isPresented: $showNoteSheet) {
+            WriteNoteSheet(observation: app.currentReflection.observation,
+                           suggestion: app.currentReflection.suggestion) { note in
+                app.saveCurrentReflection(note: note)
+                showNoteSheet = false
+                flashToast("Note saved")
+                app.advanceReflection()
+            }
+        }
+        .fullScreenCover(isPresented: $showFocusTimer) {
+            FocusTimerView(durationSeconds: focusDurationSeconds) {
+                showFocusTimer = false
+                // Reward on completion: blob love.
+                blobReact()
+                flashToast("Session complete")
+                app.advanceReflection()
+            }
         }
     }
 
@@ -75,85 +100,107 @@ struct MainView: View {
             .accessibilityAddTraits(.isHeader)
     }
 
-    // MARK: 2. Insight card — speech from KOMO, above the blob
+    // MARK: 2. Reflection card — dynamic per-card buttons
 
     private var insightCard: some View {
-        let insight = app.currentInsight
-        // Second block label softens when the insight is an affirmation (Agree).
-        let moveLabel = insight.action == .agree ? "A gentle note" : "Quick win"
+        let r = app.currentReflection
+        // Second block label softens when the card is a pure observation.
+        let secondLabel: String = (r.type == .reflect) ? "A gentle note" : "Quick win"
         return VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("✨ Insight")
                     .font(Theme.Font.label(12, weight: .bold))
                     .foregroundStyle(Theme.Palette.leaf)
-                Text(insight.noticed)
+                Text(r.observation)
                     .font(Theme.Font.body(15, weight: .medium))
                     .foregroundStyle(Theme.Palette.inkSoft)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(moveLabel)
+                Text(secondLabel)
                     .font(Theme.Font.label(12, weight: .bold))
                     .foregroundStyle(Theme.Palette.leaf)
-                Text(insight.tinyMove)
+                Text(r.suggestion)
                     .font(Theme.Font.body(15, weight: .medium))
                     .foregroundStyle(Theme.Palette.inkSoft)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            HStack(spacing: 10) {
-                // Primary action (Remind me / Start / Agree)
-                Button {
-                    withAnimation(.spring) { app.addReminder() }
-                    scheduleReminderReset()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: app.reminderAdded ? "checkmark" : insight.action.systemImage)
-                            .foregroundStyle(Theme.Palette.leaf)
-                        Text(app.reminderAdded ? "Reminder set" : insight.action.label)
-                            .font(Theme.Font.label(14, weight: .semibold))
-                            .foregroundStyle(Theme.Palette.inkMuted)
-                    }
-                    .frame(height: 42).padding(.horizontal, 16)
-                    .background(Color.white.opacity(0.55),
-                                in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Theme.Radius.chip)
-                        .strokeBorder(Color(hex: 0x3C5A46).opacity(0.18), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(app.reminderAdded ? "Reminder set" : insight.action.label)
-
-                // Secondary "Ignore" — real button, lighter styling, same height.
-                Button {
-                    withAnimation(.spring) { app.ignoreCurrentInsight() }
-                } label: {
-                    Text("Ignore")
-                        .font(Theme.Font.label(14, weight: .semibold))
-                        .foregroundStyle(Theme.Palette.inkMuted.opacity(0.85))
-                        .frame(height: 42).padding(.horizontal, 16)
-                        .background(Color.white.opacity(0.25),
-                                    in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.chip)
-                            .strokeBorder(Color(hex: 0x3C5A46).opacity(0.14), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-                .accessibilityHint("Dismiss this insight")
-
-                Spacer()
-            }
+            actionRow(for: r)
         }
         .padding(Theme.Space.cardPad)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // Native iOS 26 Liquid Glass container (same pattern as the reference
-        // LiquidGlassHContainer example): padded content, then .glassEffect
-        // in a rounded-rectangle shape. No manual fill/stroke/shadow — the
-        // modifier renders the whole glass surface with its own frost + rim.
+        // Native iOS 26 Liquid Glass container.
         .glassEffect(
             .regular,
             in: RoundedRectangle(cornerRadius: Theme.Radius.insight, style: .continuous)
         )
         .accessibilityElement(children: .contain)
+    }
+
+    /// Renders the per-card buttons in the order declared by the reflection.
+    /// `.next` is always styled as a lighter secondary button.
+    @ViewBuilder
+    private func actionRow(for r: Reflection) -> some View {
+        HStack(spacing: 8) {
+            ForEach(r.actions) { action in
+                Button {
+                    handle(action, for: r)
+                } label: {
+                    reflectionChip(action)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(action.label)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// Chip visual for a Reflection action. `.next` reads lighter.
+    @ViewBuilder
+    private func reflectionChip(_ action: ReflectionAction) -> some View {
+        let isSecondary = action.isSecondary
+        HStack(spacing: 6) {
+            Image(systemName: action.systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(isSecondary ? Theme.Palette.inkMuted.opacity(0.7) : Theme.Palette.leaf)
+            Text(action.label)
+                .font(Theme.Font.label(13, weight: .semibold))
+                .foregroundStyle(isSecondary ? Theme.Palette.inkMuted.opacity(0.85) : Theme.Palette.inkMuted)
+                .lineLimit(1)
+        }
+        .frame(height: 38).padding(.horizontal, 12)
+        .background(Color.white.opacity(isSecondary ? 0.25 : 0.55),
+                    in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.chip)
+            .strokeBorder(Color(hex: 0x3C5A46).opacity(isSecondary ? 0.14 : 0.18), lineWidth: 1))
+    }
+
+    /// Route a reflection action to its handler.
+    private func handle(_ action: ReflectionAction, for r: Reflection) {
+        switch action {
+        case .addToCalendar:
+            app.addCurrentReflectionToCalendar()
+            flashToast("Added to calendar")
+        case .save:
+            app.saveCurrentReflection(note: nil)
+            flashToast("Saved to Cards")
+        case .writeNote:
+            showNoteSheet = true
+        case .remindMe:
+            app.remindCurrentReflection()
+            flashToast("Added to reminders")
+            scheduleReminderReset()
+        case .startNow:
+            focusDurationSeconds = r.suggestedDurationSeconds
+            showFocusTimer = true
+        case .done:
+            app.markCurrentDone()
+            flashToast("Nice")
+        case .next:
+            withAnimation(.spring(response: 0.35)) { app.advanceReflection() }
+        }
     }
 
     // MARK: 3. Companion (blob) — tap = small reaction, no navigation
@@ -221,7 +268,7 @@ struct MainView: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("What shapes today's energy")
+                        .accessibilityLabel("Why \(percent) percent")
                     }
                 }
                 Spacer()
@@ -265,11 +312,9 @@ struct MainView: View {
     private var actionArea: some View {
         GlassCluster(spacing: 10) {
             HStack(spacing: 10) {
-                // Feed — fruit apple with no bite. SF Symbols has no whole-apple
-                // glyph and emojis ignore .foregroundStyle, so we render the 🍎
-                // glyph as a white silhouette by masking a white rectangle with
-                // the emoji shape — matches the white icon color of Reflect and
-                // Recharge.
+                // Feed — fruit apple silhouette (SF Symbols has no whole-apple
+                // glyph; emojis ignore .foregroundStyle so we mask a white
+                // rectangle with the 🍎 shape to match the other white icons).
                 ActionButton(title: "Feed", action: { showSnackStore = true }) {
                     Color.white
                         .frame(width: 34, height: 34)
@@ -282,7 +327,7 @@ struct MainView: View {
                 .glassEffect(.clear.interactive(), in:Circle())
 
                 ActionButton(title: "Reflect", action: {
-                    withAnimation(.spring(response: 0.35)) { app.advanceInsight() }
+                    withAnimation(.spring(response: 0.35)) { app.advanceReflection() }
                 }) {
                     Image(systemName: "lightbulb.fill")
                 }
@@ -295,6 +340,30 @@ struct MainView: View {
                 .frame(width:100, height:100)
                 .glassEffect(.clear.interactive(), in:Circle())
             }
+        }
+    }
+
+    // MARK: - Toast
+
+    @ViewBuilder
+    private var toastOverlay: some View {
+        if let toast {
+            Text(toast)
+                .font(Theme.Font.label(13, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(.black.opacity(0.65),
+                            in: Capsule(style: .continuous))
+                .padding(.top, 8)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    private func flashToast(_ message: String) {
+        withAnimation(.easeOut(duration: 0.2)) { toast = message }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.6))
+            withAnimation(.easeIn(duration: 0.25)) { toast = nil }
         }
     }
 
@@ -326,10 +395,12 @@ struct MainView: View {
     private func feedWithSnack(_ snack: Snack) {
         let item = FeedItem(icon: snack.icon)
         feedItems.append(item)
-        // Energy update fires after the drop lands (feels causal).
+        // Energy update + blob "love" reaction fire after the drop lands
+        // (feels causal). Stock is decremented via the same call.
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(850))
-            withAnimation(.spring) { app.feed(snack) }
+            withAnimation(.spring) { app.feed(snackID: snack.id) }
+            blobReact()
         }
     }
 
@@ -360,11 +431,10 @@ private struct ActionButton<Icon: View>: View {
             VStack(spacing: 10) {
                 icon()
                     .foregroundStyle(.white)
-                    // Slightly bigger than before, consistent across all three.
                     .font(.system(size: 30, weight: .medium))
                 Text(title)
                     .font(Theme.Font.label(14, weight: .bold))
-                    .foregroundStyle(.white)   // matches the icon color
+                    .foregroundStyle(.white)
             }
             .frame(maxWidth: .infinity).frame(height: 96)
         }
@@ -433,17 +503,11 @@ private struct RiseEffect: ViewModifier {
     }
 }
 
-// MARK: - Snack store sheet (Feed)
+// MARK: - Snack store sheet (Feed) — stock-aware
 
 private struct SnackStoreSheet: View {
-    var snacks: [Snack]
+    @Environment(AppState.self) private var app
     var onPick: (Snack) -> Void
-
-    // Locked demo entries — hint at future variety without shipping content yet.
-    private let locked: [(name: String, icon: String)] = [
-        ("Berry",  "🫐"),
-        ("Cookie", "🍪"),
-    ]
 
     var body: some View {
         VStack(spacing: 12) {
@@ -456,11 +520,12 @@ private struct SnackStoreSheet: View {
             }
             .padding(.top, 6)
 
-            // Available
+            // Available snacks — greyed out & disabled when stock hits 0.
             VStack(spacing: 8) {
-                ForEach(snacks) { snack in
+                ForEach(app.snacks) { snack in
+                    let available = snack.stock > 0
                     Button {
-                        onPick(snack)
+                        if available { onPick(snack) }
                     } label: {
                         HStack(spacing: 12) {
                             Text(snack.icon).font(.system(size: 28))
@@ -468,23 +533,34 @@ private struct SnackStoreSheet: View {
                                 Text(snack.name)
                                     .font(Theme.Font.label(15))
                                     .foregroundStyle(.primary)
-                                Text("+\(snack.energyBoost)% energy")
+                                Text("+\(formatBoost(snack.energyBoost)) energy · \(snack.stock) left")
                                     .font(Theme.Font.body(12))
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.tertiary)
+                            if available {
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(.tertiary)
+                            } else {
+                                Text("Empty")
+                                    .font(Theme.Font.label(11, weight: .bold))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 8).padding(.vertical, 3)
+                                    .background(Color.gray.opacity(0.18),
+                                                in: Capsule(style: .continuous))
+                            }
                         }
                         .padding(.horizontal, 12).padding(.vertical, 10)
-                        .background(Color.white.opacity(0.7),
+                        .background(Color.white.opacity(available ? 0.7 : 0.35),
                                     in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: Theme.Radius.chip)
                             .strokeBorder(Color.black.opacity(0.08), lineWidth: 1))
+                        .opacity(available ? 1 : 0.55)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Feed \(snack.name), +\(snack.energyBoost)% energy")
+                    .disabled(!available)
+                    .accessibilityLabel("Feed \(snack.name), \(available ? "\(snack.stock) left" : "empty")")
                 }
             }
             .padding(.horizontal, 20)
@@ -498,7 +574,7 @@ private struct SnackStoreSheet: View {
                     .padding(.leading, 4)
 
                 VStack(spacing: 8) {
-                    ForEach(locked, id: \.name) { snack in
+                    ForEach(AppState.lockedSnackPreviews, id: \.name) { snack in
                         HStack(spacing: 12) {
                             Text(snack.icon).font(.system(size: 22))
                             Text(snack.name)
@@ -519,15 +595,23 @@ private struct SnackStoreSheet: View {
             .padding(.horizontal, 20)
             .padding(.top, 4)
 
-            Text("Earned through rest and movement.")
+            Text("Earned through rest and movement (sleep, workouts).")
                 .font(Theme.Font.body(11))
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
                 .padding(.top, 2)
                 .padding(.bottom, 14)
         }
         .padding(.top, 4)
-        .presentationDetents([.fraction(0.5)])
+        .presentationDetents([.fraction(0.55)])
         .presentationDragIndicator(.visible)
+    }
+
+    /// "+1", "+0.5" — trim trailing .0 for the whole-number case.
+    private func formatBoost(_ x: Double) -> String {
+        if x == x.rounded() { return "\(Int(x))" }
+        return String(format: "%.1f", x)
     }
 }
 
@@ -589,7 +673,6 @@ private struct RechargeSheet: View {
         .padding(.bottom, 24)
         .presentationDetents([.medium, .large])
         .task {
-            // Alternate breath in/out over 4s cycles for a total of ~60s.
             while running && seconds > 0 {
                 caption = "Breathe in…"
                 expanded = true
@@ -605,25 +688,378 @@ private struct RechargeSheet: View {
     }
 }
 
-// MARK: - Energy info sheet (placeholder — TODO: signal summary)
+// MARK: - Energy breakdown sheet ("Why 72%")
+//
+// Opened by the (i) icon beside the energy word on Home. Reads its data from
+// the provider (`app.data.energyBreakdown()`) — the view does no scoring.
+// Two grouped sections (recovery + load); each row has a signed value and a
+// thin bar scaled to the largest absolute value in its group. The footer line
+// spells out the math: `{recovery} recharged - {load} load = {percent}%`.
 
-private struct EnergyInfoSheet: View {
+private struct EnergyBreakdownSheet: View {
+    let breakdown: EnergyBreakdown
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Colors — recovery reads as the charged-green from the EnergyLevel
+    /// palette; load reads amber. Text stays in normal ink; only bars carry color.
+    private let recoveryColor = Color(hex: 0x4EA35E)
+    private let loadColor     = Color(hex: 0xE68A3E)
+
     var body: some View {
-        VStack(spacing: 14) {
-            Capsule().fill(.secondary.opacity(0.4)).frame(width: 40, height: 4).padding(.top, 8)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                header
 
-            Text("What shapes today's energy")
-                .font(Theme.Font.title(18))
-                .padding(.top, 6)
-            // TODO: real signal summary (sleep + movement + calendar load).
-            Text("Based on sleep, movement, and calendar load.")
-                .font(Theme.Font.body(14))
+                factorSection(
+                    title: "what recharged you",
+                    totalText: "+\(formattedInt(breakdown.recoveryTotal))",
+                    items: breakdown.recoveryItems,
+                    color: recoveryColor
+                )
+
+                factorSection(
+                    title: "what drew it down",
+                    totalText: signedString(breakdown.loadTotal),
+                    items: breakdown.loadItems,
+                    color: loadColor
+                )
+
+                footer
+            }
+            .padding(.horizontal, Theme.Space.screenH)
+            .padding(.top, 8)
+            .padding(.bottom, 20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .presentationDetents([.fraction(0.72), .large])
+        .presentationDragIndicator(.visible)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Energy breakdown, \(breakdown.percent) percent, \(breakdown.word).")
+    }
+
+    // MARK: Header
+
+    private var header: some View {
+        let level = EnergyLevel.from(percent: breakdown.percent)
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("Today's energy")
+                .font(Theme.Font.label(11, weight: .heavy))
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+                .tracking(1.2)
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(breakdown.percent)%")
+                    .font(.system(size: 44, weight: .heavy, design: .rounded))
+                    .foregroundStyle(level.color)
+                Text(breakdown.word)
+                    .font(Theme.Font.title(22))
+                    .foregroundStyle(.primary)
+            }
+
+            Text("based on sleep, movement, stress, and calendar load")
+                .font(Theme.Font.body(12))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: Section
+
+    @ViewBuilder
+    private func factorSection(
+        title: String,
+        totalText: String,
+        items: [EnergyContribution],
+        color: Color
+    ) -> some View {
+        let maxAbs = items.map { abs($0.points) }.max() ?? 1
+
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title.uppercased())
+                    .font(Theme.Font.label(11, weight: .heavy))
+                    .foregroundStyle(.secondary)
+                    .tracking(1.2)
+                Spacer()
+                Text(totalText)
+                    .font(Theme.Font.label(14, weight: .heavy))
+                    .foregroundStyle(color)
+                    .monospacedDigit()
+            }
+
+            VStack(spacing: 10) {
+                ForEach(items) { item in
+                    contributionRow(item, maxAbsInGroup: maxAbs, color: color)
+                }
+            }
+        }
+    }
+
+    // MARK: Row
+
+    @ViewBuilder
+    private func contributionRow(
+        _ item: EnergyContribution,
+        maxAbsInGroup: Double,
+        color: Color
+    ) -> some View {
+        let width: CGFloat = maxAbsInGroup > 0 ? CGFloat(abs(item.points) / maxAbsInGroup) : 0
+
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(item.label)
+                    .font(Theme.Font.body(15, weight: .semibold))
+                    .foregroundStyle(.primary)
+                Spacer()
+                Text(signedString(item.points))
+                    .font(Theme.Font.label(14, weight: .heavy))
+                    .foregroundStyle(color)
+                    .monospacedDigit()
+            }
+            if let detail = item.detail, !detail.isEmpty {
+                Text(detail)
+                    .font(Theme.Font.body(12))
+                    .foregroundStyle(.secondary)
+            }
+            // Thin proportional bar. Reduce Motion: no growth animation.
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.gray.opacity(0.15))
+                    Capsule()
+                        .fill(color)
+                        .frame(width: max(4, geo.size.width * width))
+                        .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: width)
+                }
+            }
+            .frame(height: 6)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(item.label), \(signedSpokenString(item.points))\(item.detail.map { ". \($0)" } ?? "")")
+    }
+
+    // MARK: Footer
+
+    private var footer: some View {
+        let recovery = formattedInt(breakdown.recoveryTotal)
+        let load = formattedInt(abs(breakdown.loadTotal))
+        return Text("\(recovery) recharged - \(load) load = \(breakdown.percent)%")
+            .font(Theme.Font.body(12, weight: .medium))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 2)
+    }
+
+    // MARK: Formatters
+
+    private func formattedInt(_ x: Double) -> String {
+        String(Int(x.rounded()))
+    }
+
+    private func signedString(_ x: Double) -> String {
+        let n = Int(x.rounded())
+        return n >= 0 ? "+\(n)" : "\(n)"    // Int keeps the "-" sign
+    }
+
+    private func signedSpokenString(_ x: Double) -> String {
+        let n = Int(abs(x).rounded())
+        return x >= 0 ? "plus \(n)" : "minus \(n)"
+    }
+}
+
+// MARK: - Write-note sheet (Reflect / .writeNote)
+
+private struct WriteNoteSheet: View {
+    var observation: String
+    var suggestion: String
+    var onSave: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var noteText: String = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Capsule().fill(.secondary.opacity(0.4))
+                .frame(width: 40, height: 4)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 8)
+
+            Text("Write a note")
+                .font(Theme.Font.title(19))
                 .padding(.horizontal, 24)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(observation)
+                    .font(Theme.Font.body(14, weight: .medium))
+                    .foregroundStyle(.primary)
+                Text(suggestion)
+                    .font(Theme.Font.body(13))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 24)
+
+            TextField("Your note", text: $noteText, axis: .vertical)
+                .lineLimit(3...6)
+                .padding(12)
+                .background(Color.gray.opacity(0.12),
+                            in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
+                .padding(.horizontal, 20)
+                .focused($focused)
+
+            HStack(spacing: 10) {
+                Button("Cancel") { dismiss() }
+                    .buttonStyle(.bordered)
+                Button("Save") { onSave(noteText) }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(noteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding(.horizontal, 20)
+
             Spacer()
         }
-        .padding(.bottom, 24)
         .presentationDetents([.medium])
+        .task {
+            try? await Task.sleep(for: .milliseconds(200))
+            focused = true
+        }
+    }
+}
+
+// MARK: - Focus timer (Reflect / .startNow)
+//
+// Full-screen blocking countdown. User has a discreet hold-to-exit so they are
+// never trapped. On completion, dismisses and calls `onComplete`. Reduce Motion:
+// no ring animation, just the mm:ss text.
+
+private struct FocusTimerView: View {
+    var durationSeconds: Int
+    var onComplete: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @State private var remaining: Int
+    @State private var startedAt: Date = .now
+    @State private var holdProgress: CGFloat = 0
+    @State private var holdTask: Task<Void, Never>? = nil
+    @State private var finished = false
+
+    init(durationSeconds: Int, onComplete: @escaping () -> Void) {
+        self.durationSeconds = durationSeconds
+        self.onComplete = onComplete
+        self._remaining = State(initialValue: durationSeconds)
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.92).ignoresSafeArea()
+
+            VStack(spacing: 32) {
+                Text("Focus")
+                    .font(Theme.Font.label(12, weight: .heavy))
+                    .foregroundStyle(.white.opacity(0.65))
+                    .tracking(2)
+
+                ZStack {
+                    Circle()
+                        .stroke(Color.white.opacity(0.15), lineWidth: 6)
+                        .frame(width: 240, height: 240)
+                    Circle()
+                        .trim(from: 0, to: max(0, CGFloat(remaining) / CGFloat(durationSeconds)))
+                        .stroke(Color.white.opacity(0.9),
+                                style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                        .frame(width: 240, height: 240)
+                        .rotationEffect(.degrees(-90))
+                        .animation(reduceMotion ? nil : .linear(duration: 0.5), value: remaining)
+
+                    Text(timeString(remaining))
+                        .font(.system(size: 56, weight: .semibold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(.white)
+                }
+
+                Text("Keep this screen open.")
+                    .font(Theme.Font.body(13))
+                    .foregroundStyle(.white.opacity(0.6))
+
+                Spacer()
+
+                // Hold-to-exit — discreet, never traps the user.
+                holdToExitButton
+                    .padding(.bottom, 40)
+            }
+            .padding(.top, 60)
+        }
+        .task { await runCountdown() }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Focus timer, \(timeString(remaining)) remaining")
+    }
+
+    private var holdToExitButton: some View {
+        ZStack {
+            Capsule()
+                .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                .frame(width: 200, height: 44)
+            Capsule()
+                .fill(Color.white.opacity(0.15))
+                .frame(width: 200 * holdProgress, height: 44)
+                .frame(width: 200, alignment: .leading)
+                .clipShape(Capsule())
+            Text(holdProgress > 0 ? "Release to stay" : "Hold to exit")
+                .font(Theme.Font.label(13, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.85))
+        }
+        .contentShape(Capsule())
+        .gesture(
+            LongPressGesture(minimumDuration: 1.2)
+                .onEnded { _ in
+                    finished = true
+                    dismiss()
+                }
+        )
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    if holdTask == nil {
+                        startHoldFill()
+                    }
+                }
+                .onEnded { _ in
+                    holdTask?.cancel()
+                    holdTask = nil
+                    withAnimation(.easeOut(duration: 0.2)) { holdProgress = 0 }
+                }
+        )
+    }
+
+    private func startHoldFill() {
+        holdTask?.cancel()
+        holdTask = Task { @MainActor in
+            let start = Date()
+            while !Task.isCancelled {
+                let elapsed = Date().timeIntervalSince(start)
+                let p = min(1, elapsed / 1.2)
+                holdProgress = CGFloat(p)
+                if p >= 1 { break }
+                try? await Task.sleep(for: .milliseconds(30))
+            }
+        }
+    }
+
+    private func runCountdown() async {
+        while remaining > 0 && !finished {
+            try? await Task.sleep(for: .seconds(1))
+            if finished { return }
+            remaining -= 1
+        }
+        if !finished {
+            finished = true
+            onComplete()
+        }
+    }
+
+    private func timeString(_ s: Int) -> String {
+        let m = s / 60
+        let r = s % 60
+        return String(format: "%d:%02d", m, r)
     }
 }

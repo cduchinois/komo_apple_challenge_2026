@@ -1,8 +1,10 @@
 //  ProfileView.swift
 //  Komo
 //
-//  Companion profile — a calm summary of who the companion is and how it's tuned.
-//  Reached from the main screen's "Days Together" header.
+//  Companion profile — surfaces the onboarding answers the user gave (energy
+//  type, interests, authorizations) alongside the existing companion
+//  customization (World, Look, Eyes, Legs, Voice). Read-only view of stored
+//  onboarding state; nothing is re-asked here.
 
 import SwiftUI
 
@@ -10,7 +12,8 @@ struct ProfileView: View {
     @Environment(AppState.self) private var app
     var namespace: Namespace.ID
 
-    private var rows: [(String, String)] {
+    /// Existing companion-customization rows (World, Companion, Look, …).
+    private var companionRows: [(String, String)] {
         [
             ("World", app.world.name),
             ("Companion", "\(app.companionDisplayName) · \(app.character.trait)"),
@@ -21,11 +24,18 @@ struct ProfileView: View {
         ]
     }
 
+    /// Onboarding answers stored in AppState (from the Q1..Q4 flow).
+    private var onboardingRows: [(String, String)] {
+        [
+            ("Peak time", (app.energyType?.capitalized ?? "—")),
+            ("Right now", (app.energyNow?.capitalized ?? "—")),
+        ]
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
                 HStack(spacing: 14) {
-                    GlassBackButton { app.go(.main) }
                     Text(app.displayName)
                         .font(Theme.Font.title(20)).foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.3), radius: 8, y: 1)
@@ -45,20 +55,26 @@ struct ProfileView: View {
                     .font(Theme.Font.body(14)).foregroundStyle(.white.opacity(0.82))
                     .multilineTextAlignment(.center).frame(maxWidth: 280)
 
-                VStack(spacing: 0) {
-                    ForEach(Array(rows.enumerated()), id: \.offset) { idx, row in
-                        HStack {
-                            Text(row.0).font(Theme.Font.body(15)).foregroundStyle(.white.opacity(0.78))
-                            Spacer()
-                            Text(row.1).font(Theme.Font.label(15)).foregroundStyle(.white)
-                        }
-                        .padding(.horizontal, 18).padding(.vertical, 15)
-                        if idx < rows.count - 1 {
-                            Divider().overlay(Color.white.opacity(0.12)).padding(.leading, 18)
-                        }
-                    }
-                }
-                .komoGlassCard(cornerRadius: Theme.Radius.card, fillOpacity: 0.14, strokeOpacity: 0.24)
+                // 1) Onboarding energy answers
+                sectionHeader("Energy")
+                rowsCard(onboardingRows)
+
+                // 2) Interests — restores + drains chip clouds
+                sectionHeader("Interests")
+                chipsCard(title: "Recharges you",
+                          labels: app.restores,
+                          emptyText: "Not set yet.")
+                chipsCard(title: "Drains you",
+                          labels: app.drains,
+                          emptyText: "Not set yet.")
+
+                // 3) Authorizations
+                sectionHeader("Authorizations")
+                authCard
+
+                // 4) Companion customization (existing)
+                sectionHeader("Companion")
+                rowsCard(companionRows)
 
                 Button { app.go(.customize) } label: {
                     Text("Customize \(app.companionDisplayName)")
@@ -74,5 +90,106 @@ struct ProfileView: View {
             .padding(.top, Theme.Space.screenTop)
             .padding(.bottom, 44)
         }
+    }
+
+    // MARK: - Helpers
+
+    @ViewBuilder
+    private func sectionHeader(_ title: String) -> some View {
+        HStack {
+            Text(title.uppercased())
+                .font(Theme.Font.label(11, weight: .heavy))
+                .foregroundStyle(.white.opacity(0.8))
+                .tracking(1.2)
+                .padding(.leading, 4)
+            Spacer()
+        }
+        .padding(.top, 8)
+    }
+
+    @ViewBuilder
+    private func rowsCard(_ rows: [(String, String)]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { idx, row in
+                HStack {
+                    Text(row.0).font(Theme.Font.body(15)).foregroundStyle(.white.opacity(0.78))
+                    Spacer()
+                    Text(row.1).font(Theme.Font.label(15)).foregroundStyle(.white)
+                }
+                .padding(.horizontal, 18).padding(.vertical, 15)
+                if idx < rows.count - 1 {
+                    Divider().overlay(Color.white.opacity(0.12)).padding(.leading, 18)
+                }
+            }
+        }
+        .komoGlassCard(cornerRadius: Theme.Radius.card, fillOpacity: 0.14, strokeOpacity: 0.24)
+    }
+
+    @ViewBuilder
+    private func chipsCard(title: String, labels: [String], emptyText: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(Theme.Font.label(13, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.85))
+
+            if labels.isEmpty {
+                Text(emptyText)
+                    .font(Theme.Font.body(13))
+                    .foregroundStyle(.white.opacity(0.6))
+            } else {
+                FlowLayout(spacing: 6, alignment: .leading) {
+                    ForEach(labels, id: \.self) { label in
+                        Text(label)
+                            .font(Theme.Font.label(12, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .background(Color.white.opacity(0.18),
+                                        in: Capsule(style: .continuous))
+                            .overlay(Capsule().strokeBorder(Color.white.opacity(0.3), lineWidth: 1))
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                .fill(Color.white.opacity(0.12))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card)
+                    .strokeBorder(Color.white.opacity(0.22), lineWidth: 1))
+        )
+    }
+
+    private var authCard: some View {
+        VStack(spacing: 0) {
+            authRow(name: "Health data",   granted: app.auth.health)
+            authDivider
+            authRow(name: "Calendar",      granted: app.auth.calendar)
+            authDivider
+            authRow(name: "Screen time",   granted: app.auth.screen)
+            authDivider
+            authRow(name: "Notifications", granted: app.auth.notify)
+        }
+        .komoGlassCard(cornerRadius: Theme.Radius.card, fillOpacity: 0.14, strokeOpacity: 0.24)
+    }
+
+    private func authRow(name: String, granted: Bool) -> some View {
+        HStack {
+            Text(name).font(Theme.Font.body(15)).foregroundStyle(.white.opacity(0.85))
+            Spacer()
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(granted ? Theme.Palette.leaf : Color.white.opacity(0.35))
+                    .frame(width: 8, height: 8)
+                Text(granted ? "Granted" : "Not granted")
+                    .font(Theme.Font.label(13, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+        }
+        .padding(.horizontal, 18).padding(.vertical, 14)
+    }
+
+    private var authDivider: some View {
+        Divider().overlay(Color.white.opacity(0.12)).padding(.leading, 18)
     }
 }

@@ -17,6 +17,9 @@ protocol EnergyDataProviding {
     func insightLines(for tone: CompanionTone) -> [String]
     /// The single headline insight shown on the main insight card.
     func headlineInsights() -> [String]
+    /// Per-factor breakdown of today's energy score (recovery + load items),
+    /// shown when the user taps the (i) beside the energy word on Home.
+    func energyBreakdown() -> EnergyBreakdown
 }
 
 /// Static, on-device sample data mirroring the prototype exactly.
@@ -53,6 +56,24 @@ struct MockDataProvider: EnergyDataProviding {
             "Winding down 20 minutes earlier tonight lifts tomorrow’s energy.",
             "A glass of water now keeps your afternoon feeling steady.",
         ]
+    }
+
+    // TODO: replace these mock weights with the real per-factor contributions
+    // from the scoring algorithm. Keep `net == percent` once wired.
+    func energyBreakdown() -> EnergyBreakdown {
+        let contributions: [EnergyContribution] = [
+            // Recovery (+84 total)
+            .init(label: "Sleep",              detail: "7h20, solid deep sleep", points:  38, kind: .recovery),
+            .init(label: "HRV",                detail: "near your baseline",     points:  20, kind: .recovery),
+            .init(label: "Resting heart rate", detail: "normal",                 points:  14, kind: .recovery),
+            .init(label: "Light movement",     detail: "6,800 steps",            points:  12, kind: .recovery),
+            // Load (-12 total)
+            .init(label: "Calendar",           detail: "4 meetings",             points:  -6, kind: .load),
+            .init(label: "Stress",             detail: "2h elevated",            points:  -4, kind: .load),
+            .init(label: "Hard workout",       detail: "none today",             points:  -2, kind: .load),
+        ]
+        // Net = 84 + (-12) = 72 → matches Home's Steady 72%.
+        return EnergyBreakdown(percent: 72, word: "Steady", contributions: contributions)
     }
 
     func insightLines(for tone: CompanionTone) -> [String] {

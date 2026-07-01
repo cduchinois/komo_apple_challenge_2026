@@ -55,3 +55,42 @@ struct EnergySnapshot {
     var usedBy: String
     var headlineInsight: String
 }
+
+// MARK: - Energy breakdown (the "why 72%" sheet)
+
+/// One factor contributing to today's energy score. Positive `points` for
+/// recovery items, negative for load items. `detail` is an optional secondary
+/// line the sheet can render underneath the label.
+enum EnergyContributionKind: Equatable {
+    case recovery, load
+}
+
+struct EnergyContribution: Identifiable, Equatable {
+    let id = UUID()
+    let label: String
+    let detail: String?
+    let points: Double
+    let kind: EnergyContributionKind
+}
+
+/// The full breakdown shown when the user taps the (i) beside the energy word.
+/// `net` must equal `percent` once the real scoring algorithm is wired.
+struct EnergyBreakdown: Equatable {
+    let percent: Int
+    let word: String
+    let contributions: [EnergyContribution]
+
+    var recoveryItems: [EnergyContribution] {
+        contributions.filter { $0.kind == .recovery }
+    }
+    var loadItems: [EnergyContribution] {
+        contributions.filter { $0.kind == .load }
+    }
+
+    /// Sum of recovery points (positive).
+    var recoveryTotal: Double { recoveryItems.map(\.points).reduce(0, +) }
+    /// Sum of load points (negative).
+    var loadTotal: Double { loadItems.map(\.points).reduce(0, +) }
+    /// recoveryTotal + loadTotal. Should equal `percent`.
+    var net: Double { recoveryTotal + loadTotal }
+}
