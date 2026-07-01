@@ -24,7 +24,7 @@ struct RestoresView: View {
                 GlowHalo(color: Color(hex: 0x96EBA0).opacity(0.38), diameter: 150, period: 3.2)
                 BlobView(size: 138, cute: true, hue: app.dailyHue,
                          style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                         mood: .none, namespace: namespace, geometryID: "companion")
+                         mood: BlobAnim.none, namespace: namespace, geometryID: "companion")
                 ChargeFill(size: 138)
             }
             .frame(maxHeight: .infinity)

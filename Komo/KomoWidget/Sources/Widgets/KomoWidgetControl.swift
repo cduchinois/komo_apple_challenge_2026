@@ -10,7 +10,7 @@ import SwiftUI
 import WidgetKit
 
 struct KomoWidgetControl: ControlWidget {
-    static let kind: String = "com.komo.Komo.KomoWidget"
+    static let kind: String = "com.komo.companion.sacha.KomoWidget"
 
     var body: some ControlWidgetConfiguration {
         AppIntentControlConfiguration(

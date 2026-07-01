@@ -7,7 +7,7 @@ import SwiftUI
 ///
 /// To enable: In Xcode, add a Widget Extension target named "KomoWidget"
 /// and reference KomoLiveActivityAttributes from it.
-struct KomoLiveActivityAttributes: ActivityAttributes {
+nonisolated struct KomoLiveActivityAttributes: ActivityAttributes {
 
     // MARK: - Static data (set at launch, doesn't change)
 

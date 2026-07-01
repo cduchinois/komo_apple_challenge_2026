@@ -85,7 +85,7 @@ final class SmartNotificationManager: NSObject, ObservableObject {
     /// Call this after every health analysis to reschedule all smart notifications.
     func scheduleAll(from analysis: DayAnalysis?) async {
         // Clear previous Komo notifications (keep system ones)
-        await center.removePendingNotificationRequests(
+        center.removePendingNotificationRequests(
             withIdentifiers: KomoNotificationID.all
         )
 

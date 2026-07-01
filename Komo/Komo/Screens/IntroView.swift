@@ -34,7 +34,7 @@ struct IntroView: View {
             // The companion glides in from the splash via matchedGeometry.
             BlobView(size: 120, cute: true, hue: app.dailyHue,
                      style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                     mood: app.greetStep >= 7 ? .perk : .none,
+                     mood: app.greetStep >= 7 ? .perk : BlobAnim.none,
                      namespace: namespace, geometryID: "companion")
                 .padding(.bottom, 8)
 

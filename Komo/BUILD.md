@@ -36,6 +36,31 @@ walks through the full onboarding flow into the main companion screen.
 If signing stops a device build: select the **Komo** target ▸ **Signing &
 Capabilities** ▸ pick your Team (bundle id `com.komo.companion`, change if taken).
 
+### Building on another developer account
+
+For a friend building on their own iPhone, change these settings in Xcode before
+pressing Run:
+
+1. Pull the branch:
+   `git checkout sacha && git pull origin sacha`
+2. Open `Komo/Komo.xcodeproj` in Xcode.
+3. Select an iPhone 17 Pro simulator first and press Build once. This confirms
+   the code compiles before device signing is involved.
+4. Select the **Komo** target, then **Signing & Capabilities**.
+5. Set **Team** to their Apple Development team.
+6. Set **Bundle Identifier** to a unique id they own, for example
+   `com.theirname.komocompanion`.
+7. Select the **KomoWidgetExtension** target and use the same Team.
+8. Set the widget bundle id to the app bundle id plus a suffix, for example
+   `com.theirname.komocompanion.KomoWidget`.
+9. If the phone is on iOS 26.0-26.4, set the app and widget
+   **Minimum Deployments** to **iOS 26.0**. The project currently builds with
+   iOS 26.5 as its minimum deployment target.
+10. If Xcode says the device is not in the provisioning profile, unplug the
+    phone, reconnect it, keep **Automatically manage signing** enabled, and
+    press **Try Again**. If the Apple account has reached its device limit,
+    use a simulator or a different Apple Developer team.
+
 ---
 
 ## 3. What you'll see (screen flow)
