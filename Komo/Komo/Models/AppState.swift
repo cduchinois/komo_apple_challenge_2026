@@ -80,6 +80,20 @@ enum ReflectionType: String, Equatable {
     case start     // an immediate move
 }
 
+// MARK: - Topic (rule-based matcher vocabulary)
+//
+// Vocabulary shared between the reflection cards, the user's onboarding
+// answers, and the InsightSequencer. Keeping it as one enum makes it easy
+// to swap the rule-based matcher for a real reasoning engine later behind
+// the same InsightSequencing protocol.
+
+enum Topic: String, Equatable, Codable {
+    // Drains vocabulary (Q4)
+    case meetings, scrolling, poorSleep, intenseWork, socialPlans, commute
+    // Recharges vocabulary (Q3)
+    case walking, music, quietTime, workout, napSleep, outdoorActivities, timeWithFriends
+}
+
 enum ReflectionAction: String, Identifiable, Equatable, CaseIterable {
     case addToCalendar
     case save
@@ -125,6 +139,22 @@ struct Reflection: Identifiable, Equatable {
     let observation: String
     let suggestion: String
     let actions: [ReflectionAction]
+    /// Tags used by the InsightSequencer to personalize the first two cards.
+    /// Cards with an empty `topics` array are never picked by the matcher
+    /// (they still appear in the general pool afterwards).
+    let topics: [Topic]
+
+    init(type: ReflectionType,
+         observation: String,
+         suggestion: String,
+         actions: [ReflectionAction],
+         topics: [Topic] = []) {
+        self.type = type
+        self.observation = observation
+        self.suggestion = suggestion
+        self.actions = actions
+        self.topics = topics
+    }
 
     /// If the suggestion mentions "N-minute" / "N minute" / "N minutes", extract N.
     /// Otherwise 3:00 default for focus timer.
@@ -233,8 +263,15 @@ final class AppState {
     var reminderAdded = false
 
     // MARK: Home state — Reflect
-    /// Cursor into `Self.reflectionPool`. Cycles without immediate repeats.
+    /// Cursor into the resolved pool (personalized order or plain pool).
+    /// Persisted to UserDefaults so the sequence survives app relaunch.
     var reflectionIndex: Int = 0
+
+    /// Onboarding-derived topic sets used by the InsightSequencer. Ordered by
+    /// the user's selection order — the matcher walks them in that order.
+    /// Persisted so the same personalization survives relaunches.
+    var userDrainTopics: [Topic] = []
+    var userRechargeTopics: [Topic] = []
 
     // MARK: Home state — Feed
     /// Points added to today's baseline energy by feeding. Capped at +30.
@@ -248,7 +285,22 @@ final class AppState {
 
     init(data: EnergyDataProviding = MockDataProvider()) {
         self.data = data
+        // Restore personalization + cursor from previous session (if any).
+        let defaults = UserDefaults.standard
+        if let raw = defaults.stringArray(forKey: Self.udkDrainTopics) {
+            self.userDrainTopics = raw.compactMap(Topic.init(rawValue:))
+        }
+        if let raw = defaults.stringArray(forKey: Self.udkRechargeTopics) {
+            self.userRechargeTopics = raw.compactMap(Topic.init(rawValue:))
+        }
+        self.reflectionIndex = defaults.integer(forKey: Self.udkReflectionIndex)
     }
+
+    // MARK: - UserDefaults keys (personalization + cursor persistence)
+
+    private static let udkDrainTopics     = "komo.userDrainTopics"
+    private static let udkRechargeTopics  = "komo.userRechargeTopics"
+    private static let udkReflectionIndex = "komo.reflectionIndex"
 
     // MARK: Static demo content
 
@@ -276,108 +328,159 @@ final class AppState {
         "Screen dimming after 9pm often improves sleep depth.",
     ]
 
-    /// The Reflect pool — exactly 25 cards, in this order.
+    /// The Reflect pool — exactly 25 cards, in this order. Topic tags feed
+    /// the InsightSequencer's rule-based matcher.
     static let reflectionPool: [Reflection] = [
+        // 1
         .init(type: .add,
               observation: "your energy often dips after back-to-back meetings.",
               suggestion: "take 5 minutes outside before your next call.",
-              actions: [.addToCalendar, .save, .next]),
+              actions: [.addToCalendar, .save, .next],
+              topics: [.meetings]),
+        // 2
         .init(type: .reflect,
               observation: "you slept 7+ hours on five nights this week.",
               suggestion: "your body seems to recover better when sleep is consistent.",
-              actions: [.writeNote, .save, .next]),
+              actions: [.writeNote, .save, .next],
+              topics: [.napSleep, .poorSleep]),
+        // 3
         .init(type: .remind,
               observation: "afternoons feel foggy on days you eat a heavy lunch.",
               suggestion: "try a lighter lunch before 1pm today.",
-              actions: [.remindMe, .save, .next]),
+              actions: [.remindMe, .save, .next],
+              topics: []),
+        // 4
         .init(type: .remind,
               observation: "your screen time usually climbs after 9pm.",
               suggestion: "dim your phone at 9 tonight and see how your sleep feels.",
-              actions: [.remindMe, .save, .next]),
+              actions: [.remindMe, .save, .next],
+              topics: [.scrolling, .poorSleep]),
+        // 5
         .init(type: .start,
               observation: "you skipped your usual workout today.",
               suggestion: "try a quick 10-minute reset instead.",
-              actions: [.startNow, .save, .next]),
+              actions: [.startNow, .save, .next],
+              topics: [.workout]),
+        // 6
         .init(type: .start,
               observation: "mornings go better when you begin with focus instead of scrolling.",
               suggestion: "start a 10-minute focus session.",
-              actions: [.startNow, .remindMe, .next]),
+              actions: [.startNow, .remindMe, .next],
+              topics: [.scrolling]),
+        // 7
         .init(type: .start,
               observation: "someone's been on your mind.",
               suggestion: "send a quick text or call them now.",
-              actions: [.startNow, .done, .next]),
+              actions: [.startNow, .done, .next],
+              topics: [.timeWithFriends]),
+        // 8
         .init(type: .add,
               observation: "your calendar looks packed before lunch.",
               suggestion: "block 10 minutes after your last morning meeting.",
-              actions: [.addToCalendar, .next]),
+              actions: [.addToCalendar, .next],
+              topics: [.meetings, .intenseWork]),
+        // 9
         .init(type: .remind,
               observation: "you tend to sit for long stretches on workdays.",
               suggestion: "stand up for 3 minutes before your next session.",
-              actions: [.remindMe, .done, .next]),
+              actions: [.remindMe, .done, .next],
+              topics: [.intenseWork]),
+        // 10
         .init(type: .start,
               observation: "your energy looks low right now.",
               suggestion: "do a 2-minute reset: breathe, stretch, drink water.",
-              actions: [.startNow, .next]),
+              actions: [.startNow, .next],
+              topics: []),
+        // 11
         .init(type: .remind,
               observation: "late workouts seem to push your bedtime later.",
               suggestion: "try moving your workout earlier today.",
-              actions: [.remindMe, .save, .next]),
+              actions: [.remindMe, .save, .next],
+              topics: [.workout, .poorSleep]),
+        // 12
         .init(type: .reflect,
               observation: "you moved more than usual yesterday.",
               suggestion: "your energy looks steadier after active days.",
-              actions: [.save, .writeNote, .next]),
+              actions: [.save, .writeNote, .next],
+              topics: [.workout, .walking]),
+        // 13
         .init(type: .start,
               observation: "your focus usually improves after a short walk.",
               suggestion: "take a 7-minute walk without your phone.",
-              actions: [.startNow, .done, .next]),
+              actions: [.startNow, .done, .next],
+              topics: [.walking]),
+        // 14
         .init(type: .remind,
               observation: "your evening energy crashes after long screen sessions.",
               suggestion: "take a screen break before dinner.",
-              actions: [.remindMe, .next]),
+              actions: [.remindMe, .next],
+              topics: [.scrolling]),
+        // 15
         .init(type: .add,
               observation: "you have a heavy meeting block today.",
               suggestion: "protect a recovery gap after it.",
-              actions: [.addToCalendar, .next]),
+              actions: [.addToCalendar, .next],
+              topics: [.meetings]),
+        // 16
         .init(type: .start,
               observation: "you look mentally loaded today.",
               suggestion: "clear one small task in 10 minutes.",
-              actions: [.startNow, .next]),
+              actions: [.startNow, .next],
+              topics: [.intenseWork]),
+        // 17
         .init(type: .reflect,
               observation: "quiet time seems to help you recharge.",
               suggestion: "notice how you feel after 5 minutes without input.",
-              actions: [.writeNote, .save, .next]),
+              actions: [.writeNote, .save, .next],
+              topics: [.quietTime]),
+        // 18
         .init(type: .remind,
               observation: "your sleep tends to suffer after late scrolling.",
               suggestion: "start wind down mode at 9:30 tonight.",
-              actions: [.remindMe, .next]),
+              actions: [.remindMe, .next],
+              topics: [.scrolling, .poorSleep]),
+        // 19
         .init(type: .start,
               observation: "your body has been still for a while.",
               suggestion: "move for 5 minutes. nothing heroic.",
-              actions: [.startNow, .done, .next]),
+              actions: [.startNow, .done, .next],
+              topics: [.walking, .workout]),
+        // 20
         .init(type: .reflect,
               observation: "your best energy window is usually in the morning.",
               suggestion: "protect that window for deep work when you can.",
-              actions: [.save, .addToCalendar, .next]),
+              actions: [.save, .addToCalendar, .next],
+              topics: [.intenseWork]),
+        // 21
         .init(type: .remind,
               observation: "your afternoon dips often follow low-movement mornings.",
               suggestion: "take a short walk before lunch.",
-              actions: [.remindMe, .next]),
+              actions: [.remindMe, .next],
+              topics: [.walking]),
+        // 22
         .init(type: .start,
               observation: "you seem close to an energy crash.",
               suggestion: "pause for 3 minutes before pushing through.",
-              actions: [.startNow, .next]),
+              actions: [.startNow, .next],
+              topics: []),
+        // 23
         .init(type: .reflect,
               observation: "social time seems to recharge you on some days.",
               suggestion: "notice who gives you energy, not just attention.",
-              actions: [.writeNote, .save, .next]),
+              actions: [.writeNote, .save, .next],
+              topics: [.timeWithFriends, .socialPlans]),
+        // 24
         .init(type: .remind,
               observation: "your focus drops when meetings run back-to-back.",
               suggestion: "leave 5 minutes between calls when possible.",
-              actions: [.addToCalendar, .save, .next]),
+              actions: [.addToCalendar, .save, .next],
+              topics: [.meetings]),
+        // 25
         .init(type: .start,
               observation: "you have a small window right now.",
               suggestion: "use it to reset, not scroll.",
-              actions: [.startNow, .next]),
+              actions: [.startNow, .next],
+              topics: [.scrolling]),
     ]
 
     // MARK: Derived values
@@ -468,11 +571,70 @@ final class AppState {
         companionName = ""
     }
 
+    // MARK: - Onboarding → topics mapping
+
+    /// Map a Q4 drain selection string to a Topic (or nil if it has no mapping).
+    static func drainTopic(from selection: String) -> Topic? {
+        switch selection {
+        case "meetings":         return .meetings
+        case "screen time":      return .scrolling
+        case "poor sleep":       return .poorSleep
+        case "intense work":     return .intenseWork
+        case "social plans":     return .socialPlans
+        case "commute / travel": return .commute
+        default:                 return nil    // "sitting too long", "not sure yet"
+        }
+    }
+
+    /// Map a Q3 recharge selection string to a Topic (or nil if none).
+    static func rechargeTopic(from selection: String) -> Topic? {
+        switch selection {
+        case "walking":     return .walking
+        case "music":       return .music
+        case "quiet time":  return .quietTime
+        case "workout":     return .workout
+        case "nap / sleep": return .napSleep
+        case "outside":     return .outdoorActivities
+        case "talking":     return .timeWithFriends
+        default:            return nil     // "not sure yet"
+        }
+    }
+
+    /// Called when the user finishes onboarding (right before Loading). Snapshots
+    /// their drain/recharge topics, persists them, and resets the Reflect cursor
+    /// so the personalized sequence starts at card 1.
+    func completeOnboarding() {
+        userDrainTopics    = drains.compactMap(Self.drainTopic(from:))
+        userRechargeTopics = restores.compactMap(Self.rechargeTopic(from:))
+        reflectionIndex = 0
+
+        let defaults = UserDefaults.standard
+        defaults.set(userDrainTopics.map(\.rawValue),    forKey: Self.udkDrainTopics)
+        defaults.set(userRechargeTopics.map(\.rawValue), forKey: Self.udkRechargeTopics)
+        defaults.set(reflectionIndex,                     forKey: Self.udkReflectionIndex)
+    }
+
     // MARK: Home-screen state derivations
+
+    /// Personalized pool if the user has onboarding topics, else the plain pool.
+    /// Same output feeds both the Home insight card and the Reflect button so
+    /// they stay in sync.
+    /// TODO: replace `RuleBasedInsightSequencer` with the Foundation Models
+    ///       reasoning engine (same InsightSequencing protocol).
+    var resolvedPool: [Reflection] {
+        guard !userDrainTopics.isEmpty || !userRechargeTopics.isEmpty else {
+            return Self.reflectionPool
+        }
+        let sequencer: InsightSequencing = RuleBasedInsightSequencer()
+        return sequencer.orderedPool(from: Self.reflectionPool,
+                                     drains: userDrainTopics,
+                                     recharges: userRechargeTopics)
+    }
 
     /// The reflection currently displayed on the home speech card.
     var currentReflection: Reflection {
-        Self.reflectionPool[reflectionIndex % Self.reflectionPool.count]
+        let pool = resolvedPool
+        return pool[reflectionIndex % pool.count]
     }
 
     /// Energy percent shown on the home hero (baseline + snacks fed today).
@@ -488,9 +650,13 @@ final class AppState {
 
     // MARK: Reflect — cycle through the pool
 
-    /// Advance to the next Reflection (non-repeating).
+    /// Advance to the next Reflection (non-repeating). Uses the resolved pool
+    /// count so cursor arithmetic matches whatever pool the UI is showing.
+    /// Persists to UserDefaults so the position survives relaunch.
     func advanceReflection() {
-        reflectionIndex = (reflectionIndex + 1) % Self.reflectionPool.count
+        let count = resolvedPool.count
+        reflectionIndex = (reflectionIndex + 1) % max(1, count)
+        UserDefaults.standard.set(reflectionIndex, forKey: Self.udkReflectionIndex)
     }
 
     // MARK: Reflect — action handlers (per-card buttons)

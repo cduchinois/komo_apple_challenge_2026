@@ -53,6 +53,10 @@ struct LoadingView: View {
         .padding(.horizontal, 36)
         .padding(.vertical, 80)
         .task {
+            // Snapshot onboarding answers into topic sets and reset the
+            // Reflect cursor so the first two Home cards are personalized.
+            app.completeOnboarding()
+
             // Fire the native notification prompt here (replaces the old
             // SignalsView toggle wall). The bar keeps filling in parallel —
             // slowed intentionally so the user has time to read + tap the
