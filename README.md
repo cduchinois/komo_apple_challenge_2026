@@ -1,6 +1,4 @@
 # KOMO
-<img width="1520" height="656" alt="Banner Revision" src="https://github.com/user-attachments/assets/f1a3b2aa-55b9-42cf-b0f5-d59ec9c46d1c" />
-
 
 **KOMO is a private, on-device AI companion for Apple users who want to understand and protect their daily energy — without logging, streaks, dashboards, or compromising personal data.**
 
@@ -212,3 +210,17 @@ The killer feature is private personal energy pattern discovery. KOMO learns wha
 KOMO turns this into a living companion. When users protect their energy, KOMO receives snacks and grows with them. But it never punishes absence. It grows through self-awareness, not guilt.
 
 Long-term, KOMO becomes a private AI life coach for energy, habits, learning, and everyday wellbeing.
+
+---
+
+## 8. iOS App
+
+A native **iOS 26 / SwiftUI** implementation of the prototype lives in
+[`Komo/`](Komo/). It rebuilds every screen — onboarding, the animated companion,
+the stats scroll, tap-to-insight, profile, and customize — natively (no WebView),
+with the living blob driven by `TimelineView` + a custom `Shape`, Apple Liquid
+Glass surfaces, and all data mocked behind a provider protocol so HealthKit can be
+swapped in later.
+
+Open `Komo/Komo.xcodeproj` in Xcode 26 and press ⌘R. Full instructions:
+[`Komo/BUILD.md`](Komo/BUILD.md).
