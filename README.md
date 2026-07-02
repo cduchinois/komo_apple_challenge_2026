@@ -224,3 +224,29 @@ swapped in later.
 
 Open `Komo/Komo.xcodeproj` in Xcode 26 and press ⌘R. Full instructions:
 [`Komo/BUILD.md`](Komo/BUILD.md).
+
+### 8.1 What's implemented
+
+- Live **HealthKit** pipeline (sleep, HRV, resting HR, steps, active energy, workouts) matching Apple Health totals.
+- Custom **EnergyScoreEngine** (`E = R × exp(−L) × 100`) with a readable per-signal breakdown.
+- On-device **AI insights** via Apple Foundation Models, with a deterministic rule-based fallback.
+- On-device **CoreML** stress classification feeding the energy load term.
+- **Home widget** synced through an App Group.
+- **Localization** in 10 locales: English (US/UK/AU), French, Spanish, German, Portuguese, Japanese, Simplified Chinese, Italian.
+
+### 8.2 Tech stack
+
+SwiftUI · SwiftData · HealthKit · EventKit · CoreML · FoundationModels · WidgetKit · Apple Liquid Glass · iOS 26.
+
+---
+
+## 9. Privacy
+
+KOMO is **100% on-device**. It reads Apple Health and Calendar signals only with your permission, processes everything locally (including AI), and sends nothing to any server.
+
+Full policy: [`PRIVACY.md`](PRIVACY.md) — use its URL as the App Store **Privacy Policy URL**.
+
+## 10. Support
+
+- Repository: <https://github.com/cduchinois/komo_apple_challenge_2026>
+- Contact: **contact@komo.app** _(replace with your real support email)_
