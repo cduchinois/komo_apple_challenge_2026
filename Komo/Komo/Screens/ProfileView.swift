@@ -82,10 +82,10 @@ struct ProfileView: View {
 
                 Button { app.go(.customize) } label: {
                     Text("Customize \(app.companionDisplayName)")
-                        .font(Theme.Font.label(16)).foregroundStyle(Theme.Palette.ink)
+                        .font(Theme.Font.label(16)).foregroundStyle(.white)
                         .frame(maxWidth: .infinity).frame(height: 52)
-                        .background(Color.white.opacity(0.96), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
                         .shadow(color: .black.opacity(0.2), radius: 12, y: 8)
+                        .glassEffect(.clear.interactive())
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 4)
