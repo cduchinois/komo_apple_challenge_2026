@@ -219,8 +219,12 @@ struct SignalAuth: Equatable {
 @Observable
 final class AppState {
 
-    // MARK: Injected data source (swap for HealthKit later)
-    let data: EnergyDataProviding
+    // MARK: Injected data source (swappable)
+    //
+    // Provider precedence: real HealthKit-backed scorer (future) > onboarding
+    // scorer > MockDataProvider. Starts as mock; upgraded to
+    // `OnboardingEnergyScorer` as soon as we have onboarding answers.
+    var data: EnergyDataProviding
 
     // MARK: Navigation
     var screen: KomoScreen = .splash
@@ -284,23 +288,49 @@ final class AppState {
     var todos: [TodoItem] = []
 
     init(data: EnergyDataProviding = MockDataProvider()) {
-        self.data = data
-        // Restore personalization + cursor from previous session (if any).
         let defaults = UserDefaults.standard
-        if let raw = defaults.stringArray(forKey: Self.udkDrainTopics) {
-            self.userDrainTopics = raw.compactMap(Topic.init(rawValue:))
+
+        // Read persisted values into locals first — Swift requires all stored
+        // properties to be initialized before any read of `self`.
+        let drainTopicsRaw = defaults.stringArray(forKey: Self.udkDrainTopics) ?? []
+        let rechargeTopicsRaw = defaults.stringArray(forKey: Self.udkRechargeTopics) ?? []
+        let restoredEnergyType  = defaults.string(forKey: Self.udkEnergyType)
+        let restoredEnergyNow   = defaults.string(forKey: Self.udkEnergyNow)
+        let restoredSleepAnswer = defaults.string(forKey: Self.udkSleepAnswer)
+
+        // Reflect personalization + cursor.
+        self.userDrainTopics    = drainTopicsRaw.compactMap(Topic.init(rawValue:))
+        self.userRechargeTopics = rechargeTopicsRaw.compactMap(Topic.init(rawValue:))
+        self.reflectionIndex    = defaults.integer(forKey: Self.udkReflectionIndex)
+
+        // Onboarding scoring answers.
+        self.energyType  = restoredEnergyType
+        self.energyNow   = restoredEnergyNow
+        self.sleepAnswer = restoredSleepAnswer
+
+        // Provider precedence: OnboardingEnergyScorer if we have any onboarding
+        // answers from a previous session, otherwise the mock provider.
+        if restoredEnergyType != nil || restoredEnergyNow != nil || restoredSleepAnswer != nil {
+            self.data = OnboardingEnergyScorer(
+                energyNow: restoredEnergyNow,
+                sleepAnswer: restoredSleepAnswer,
+                energyType: restoredEnergyType,
+                fallback: data
+            )
+        } else {
+            self.data = data
         }
-        if let raw = defaults.stringArray(forKey: Self.udkRechargeTopics) {
-            self.userRechargeTopics = raw.compactMap(Topic.init(rawValue:))
-        }
-        self.reflectionIndex = defaults.integer(forKey: Self.udkReflectionIndex)
     }
 
-    // MARK: - UserDefaults keys (personalization + cursor persistence)
+    // MARK: - UserDefaults keys (personalization + cursor + score persistence)
 
     private static let udkDrainTopics     = "komo.userDrainTopics"
     private static let udkRechargeTopics  = "komo.userRechargeTopics"
     private static let udkReflectionIndex = "komo.reflectionIndex"
+    private static let udkEnergyType      = "komo.energyType"        // Q1
+    private static let udkEnergyNow       = "komo.energyNow"         // Q2
+    private static let udkSleepAnswer     = "komo.sleepAnswer"       // Sleep Q
+    private static let udkLastPercent     = "komo.lastPercent"       // widget/cold-start hint
 
     // MARK: Static demo content
 
@@ -600,18 +630,39 @@ final class AppState {
         }
     }
 
-    /// Called when the user finishes onboarding (right before Loading). Snapshots
-    /// their drain/recharge topics, persists them, and resets the Reflect cursor
-    /// so the personalized sequence starts at card 1.
+    /// Called when the user finishes onboarding (right before Loading).
+    /// - Snapshots drain/recharge topics for the Reflect matcher.
+    /// - Persists Q1/Q2/sleep so the OnboardingEnergyScorer works on cold launch.
+    /// - Swaps `data` for an OnboardingEnergyScorer wrapping the previous provider.
+    /// - Caches the freshly computed percent for a widget / cold-start hint.
+    /// - Resets the Reflect cursor so the personalized sequence starts at card 1.
     func completeOnboarding() {
         userDrainTopics    = drains.compactMap(Self.drainTopic(from:))
         userRechargeTopics = restores.compactMap(Self.rechargeTopic(from:))
         reflectionIndex = 0
 
+        // Wrap the current provider in the onboarding scorer so Home + the (i)
+        // sheet use the rule-based score from now on. If it's already wrapped
+        // (relaunch after onboarding), we re-wrap with the freshest answers.
+        let baseProvider: EnergyDataProviding = (data as? OnboardingEnergyScorer)?.fallback ?? data
+        let scorer = OnboardingEnergyScorer(
+            energyNow: energyNow,
+            sleepAnswer: sleepAnswer,
+            energyType: energyType,
+            fallback: baseProvider
+        )
+        data = scorer
+
         let defaults = UserDefaults.standard
         defaults.set(userDrainTopics.map(\.rawValue),    forKey: Self.udkDrainTopics)
         defaults.set(userRechargeTopics.map(\.rawValue), forKey: Self.udkRechargeTopics)
         defaults.set(reflectionIndex,                     forKey: Self.udkReflectionIndex)
+        defaults.set(energyType,                          forKey: Self.udkEnergyType)
+        defaults.set(energyNow,                           forKey: Self.udkEnergyNow)
+        defaults.set(sleepAnswer,                         forKey: Self.udkSleepAnswer)
+
+        // Cache the freshly computed percent for cold-start / widget hints.
+        defaults.set(scorer.currentSnapshot().percent, forKey: Self.udkLastPercent)
     }
 
     // MARK: Home-screen state derivations

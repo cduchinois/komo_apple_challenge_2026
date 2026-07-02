@@ -78,6 +78,10 @@ struct EnergyContribution: Identifiable, Equatable {
 struct EnergyBreakdown: Equatable {
     let percent: Int
     let word: String
+    /// Provider-owned subtitle rendered under the header in the (i) sheet.
+    /// Changes as the underlying signal source changes (mock vs. onboarding
+    /// scorer vs. real HealthKit).
+    let subtitle: String
     let contributions: [EnergyContribution]
 
     var recoveryItems: [EnergyContribution] {

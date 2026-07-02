@@ -73,7 +73,12 @@ struct MockDataProvider: EnergyDataProviding {
             .init(label: "Hard workout",       detail: "none today",             points:  -2, kind: .load),
         ]
         // Net = 84 + (-12) = 72 → matches Home's Steady 72%.
-        return EnergyBreakdown(percent: 72, word: "Steady", contributions: contributions)
+        return EnergyBreakdown(
+            percent: 72,
+            word: "Steady",
+            subtitle: "based on sleep, movement, stress, and calendar load",
+            contributions: contributions
+        )
     }
 
     func insightLines(for tone: CompanionTone) -> [String] {

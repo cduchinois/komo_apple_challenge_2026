@@ -723,14 +723,16 @@ private struct EnergyBreakdownSheet: View {
                     title: "what recharged you",
                     totalText: "+\(formattedInt(breakdown.recoveryTotal))",
                     items: breakdown.recoveryItems,
-                    color: recoveryColor
+                    color: recoveryColor,
+                    emptyLine: "nothing lifting you up right now."
                 )
 
                 factorSection(
                     title: "what drew it down",
                     totalText: signedString(breakdown.loadTotal),
                     items: breakdown.loadItems,
-                    color: loadColor
+                    color: loadColor,
+                    emptyLine: "nothing pulling you down right now."
                 )
 
                 footer
@@ -765,7 +767,9 @@ private struct EnergyBreakdownSheet: View {
                     .foregroundStyle(.primary)
             }
 
-            Text("based on sleep, movement, stress, and calendar load")
+            // Subtitle is provider-owned so it tracks the underlying signal
+            // source (mock / onboarding scorer / real health data).
+            Text(breakdown.subtitle)
                 .font(Theme.Font.body(12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -780,7 +784,8 @@ private struct EnergyBreakdownSheet: View {
         title: String,
         totalText: String,
         items: [EnergyContribution],
-        color: Color
+        color: Color,
+        emptyLine: String
     ) -> some View {
         let maxAbs = items.map { abs($0.points) }.max() ?? 1
 
@@ -791,10 +796,18 @@ private struct EnergyBreakdownSheet: View {
                     .foregroundStyle(.secondary)
                     .tracking(1.2)
                 Spacer()
-                Text(totalText)
+                Text(items.isEmpty ? "" : totalText)
                     .font(Theme.Font.label(14, weight: .heavy))
                     .foregroundStyle(color)
                     .monospacedDigit()
+            }
+
+            if items.isEmpty {
+                Text(emptyLine)
+                    .font(Theme.Font.body(13))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, 2)
             }
 
             VStack(spacing: 10) {
