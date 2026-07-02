@@ -194,15 +194,9 @@ struct TodoItem: Identifiable, Equatable {
     let createdAt: Date
 }
 
-// MARK: - Snack (mutable stock)
-
-struct Snack: Identifiable, Equatable {
-    let id = UUID()
-    let name: String
-    let icon: String            // emoji
-    let energyBoost: Double     // points added to energy hero
-    var stock: Int              // remaining pieces
-}
+// NOTE: The snack currency was replaced by stars — earned from Recharge /
+// FocusTimer completions, spent by the Feed button. `Snack` and its store
+// are removed. See `starBalance` + `feedKomoWithStar()` below.
 
 /// On-device signal permissions toggled on the Signals screen.
 /// Card order matches the prototype: health, calendar, screen, notify.
@@ -280,8 +274,15 @@ final class AppState {
     // MARK: Home state — Feed
     /// Points added to today's baseline energy by feeding. Capped at +30.
     var energyBoost: Double = 0
-    /// Mutable snack inventory (stock decreases as the user feeds).
-    var snacks: [Snack] = AppState.initialSnacks
+
+    // MARK: Stars — the new feed currency
+    //
+    // The user earns stars by completing a Recharge / FocusTimer session and
+    // spends them by tapping Feed. Users start with 2 stars so the demo has
+    // something to give KOMO on first launch.
+    var starBalance: Int = 2
+    /// Cumulative feeds across the KOMO's lifetime — drives KOMO's level.
+    var starsFedTotal: Int = 0
 
     // MARK: Cards tab feeds
     var savedInsights: [SavedInsight] = []
@@ -308,6 +309,14 @@ final class AppState {
         self.energyNow   = restoredEnergyNow
         self.sleepAnswer = restoredSleepAnswer
 
+        // Stars — first launch: 2 (property default). Later launches restore
+        // whatever the user left behind. `object(forKey:)` distinguishes "never
+        // set" (nil) from an intentional zero.
+        if defaults.object(forKey: Self.udkStarBalance) != nil {
+            self.starBalance = defaults.integer(forKey: Self.udkStarBalance)
+        }
+        self.starsFedTotal = defaults.integer(forKey: Self.udkStarsFedTotal)
+
         // Provider precedence: OnboardingEnergyScorer if we have any onboarding
         // answers from a previous session, otherwise the mock provider.
         if restoredEnergyType != nil || restoredEnergyNow != nil || restoredSleepAnswer != nil {
@@ -331,22 +340,13 @@ final class AppState {
     private static let udkEnergyNow       = "komo.energyNow"         // Q2
     private static let udkSleepAnswer     = "komo.sleepAnswer"       // Sleep Q
     private static let udkLastPercent     = "komo.lastPercent"       // widget/cold-start hint
+    private static let udkStarBalance     = "komo.starBalance"       // spendable stars
+    private static let udkStarsFedTotal   = "komo.starsFedTotal"     // lifetime feed count → level
 
     // MARK: Static demo content
-
-    /// Two starter snacks, each with limited stock (2 pieces).
-    /// Energy values kept small so the hero moves subtly, not dramatically.
-    static let initialSnacks: [Snack] = [
-        .init(name: "Apple",  icon: "🍎", energyBoost: 1.0, stock: 2),
-        .init(name: "Walnut", icon: "🥜", energyBoost: 0.5, stock: 2),
-    ]
-
-    /// Additional snack shapes shown as locked in the store, with a hint on
-    /// how to earn them (rest + movement).
-    static let lockedSnackPreviews: [(name: String, icon: String)] = [
-        ("Berry",  "🫐"),
-        ("Cookie", "🍪"),
-    ]
+    //
+    // (Stars are a KOMO-only currency now — feeding no longer touches the
+    // user's energy pipeline, so no energy-per-star constant is needed here.)
 
     /// A light seed of evergreen energy tips shown in the Cards tab's
     /// "Energy advice" section. TODO: derive these from real patterns.
@@ -779,17 +779,50 @@ final class AppState {
         todos.removeAll { $0.id == item.id }
     }
 
-    // MARK: Feed — decrement stock, bump energy, blob love
+    // MARK: Stars — earn (Recharge / Focus) + spend (Feed)
 
-    /// Feed a snack by ID. Decrements that snack's stock and adds a small
-    /// energy boost (Apple +1, Walnut +0.5). Caller triggers the drop-to-blob
-    /// treat animation and the rising heart in the view.
-    func feed(snackID: Snack.ID) {
-        guard let idx = snacks.firstIndex(where: { $0.id == snackID }),
-              snacks[idx].stock > 0 else { return }
-        snacks[idx].stock -= 1
-        energyBoost = min(30, energyBoost + snacks[idx].energyBoost)
+    /// Grants stars for a completed Recharge / FocusTimer session. Persists.
+    func earnStar(_ count: Int = 1) {
+        guard count > 0 else { return }
+        starBalance += count
+        UserDefaults.standard.set(starBalance, forKey: Self.udkStarBalance)
     }
+
+    /// Try to spend one star to feed KOMO. Returns `true` if the star was
+    /// available and spent; the caller then plays the drop → blob animation.
+    /// Feeding KOMO is purely for KOMO: it does NOT touch the user's energy
+    /// pipeline (`energyBoost` / `homeEnergyPercent`). It only decrements the
+    /// star balance and bumps the lifetime feed counter that drives KOMO's
+    /// level.
+    @discardableResult
+    func feedKomoWithStar() -> Bool {
+        guard starBalance > 0 else { return false }
+        starBalance -= 1
+        starsFedTotal += 1
+        let defaults = UserDefaults.standard
+        defaults.set(starBalance,   forKey: Self.udkStarBalance)
+        defaults.set(starsFedTotal, forKey: Self.udkStarsFedTotal)
+        return true
+    }
+
+    // MARK: KOMO level (derived from feeds + days together)
+
+    /// Integer level starting at 1, increasing every 3 combined
+    /// (feed events + days together) units.
+    var komoLevel: Int {
+        1 + (starsFedTotal + max(0, currentDaysTogether - 1)) / 3
+    }
+
+    /// Progress toward the next level in 0...1.
+    var komoLevelProgress: Double {
+        let total = starsFedTotal + max(0, currentDaysTogether - 1)
+        let intoLevel = total % 3
+        return Double(intoLevel) / 3.0
+    }
+
+    /// Days together — placeholder for the real onboarding-anniversary count.
+    /// TODO: wire real `daysTogether` from a persisted onboarding date.
+    var currentDaysTogether: Int { 1 }
 
     func addReminder() {
         reminderAdded = true
