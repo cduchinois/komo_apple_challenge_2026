@@ -77,7 +77,7 @@ struct HealthPermissionView: View {
             .buttonStyle(.plain)
             .padding(.top, 4)
         }
-        .padding(.horizontal, Theme.Space.screenH)
+        .safeAreaPadding(.horizontal, 40)
         .padding(.top, Theme.Space.screenTop)
         .padding(.bottom, 24)
         .task {

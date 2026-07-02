@@ -42,7 +42,7 @@ struct RestoresView: View {
             }
             .padding(.top, 16)
         }
-        .safeAreaPadding(.horizontal, 20)
+        .safeAreaPadding(.horizontal, 40)
         .padding(.top, Theme.Space.screenTop)
         .padding(.bottom, 32)
         .animation(.spring(response: 0.25), value: app.restores)

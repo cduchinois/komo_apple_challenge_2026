@@ -126,7 +126,13 @@ struct ProfileView: View {
                 }
             }
         }
-        .komoGlassCard(cornerRadius: Theme.Radius.card, fillOpacity: 0.14, strokeOpacity: 0.24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                .fill(Color.white.opacity(0.12))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card)
+                    .strokeBorder(Color.white.opacity(0.22), lineWidth: 1))
+        )
     }
 
     @ViewBuilder
@@ -193,7 +199,14 @@ struct ProfileView: View {
                 }
             }
         }
-        .komoGlassCard(cornerRadius: Theme.Radius.card, fillOpacity: 0.14, strokeOpacity: 0.24)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                .fill(Color.white.opacity(0.12))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card)
+                    .strokeBorder(Color.white.opacity(0.22), lineWidth: 1))
+        )
         .task {
             // Re-read system-authoritative state whenever Profile appears —
             // status can change outside the app (Settings toggle).

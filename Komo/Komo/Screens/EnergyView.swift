@@ -54,7 +54,7 @@ struct EnergyView: View {
             .disabled(picked != nil)
         }
         .frame(maxWidth: .infinity)
-        .safeAreaPadding(.horizontal, 20)
+        .safeAreaPadding(.horizontal, 40)
         .padding(.top, Theme.Space.screenTop)
         .padding(.bottom, 32)
     }
