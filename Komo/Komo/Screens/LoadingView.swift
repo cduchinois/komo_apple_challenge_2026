@@ -9,6 +9,7 @@ import SwiftUI
 
 struct LoadingView: View {
     @Environment(AppState.self) private var app
+    @Environment(PermissionsManager.self) private var permissions
     var namespace: Namespace.ID
 
     private var caption: String {
@@ -53,7 +54,24 @@ struct LoadingView: View {
         .padding(.horizontal, 36)
         .padding(.vertical, 80)
         .task {
-            await app.completeOnboardingLoad()
+            // Snapshot onboarding answers into topic sets and reset the
+            // Reflect cursor so the first two Home cards are personalized.
+            app.completeOnboarding()
+
+            // Load HealthKit data + persist energy check-in in the background.
+            Task { await app.completeOnboardingLoad() }
+
+            // Request notifications (replaces SignalsView toggle wall).
+            Task { await permissions.requestNotifications() }
+
+            app.loadingPct = 0
+            while app.loadingPct < 100 {
+                try? await Task.sleep(for: .milliseconds(130))
+                if app.screen != .loading { return }
+                app.loadingPct = min(100, app.loadingPct + (1 + Double.random(in: 0..<2)))
+            }
+            try? await Task.sleep(for: .milliseconds(1200))
+            if app.screen == .loading { app.go(.main) }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Bringing your companion to life. \(Int(app.loadingPct)) percent.")

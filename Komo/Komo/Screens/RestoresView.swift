@@ -16,7 +16,7 @@ struct RestoresView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            OnboardingHeader(step: 2) { app.go(.now) }
+            OnboardingHeader(step: 3) { app.go(.healthPermission) }
                 .padding(.bottom, 14)
 
             QuestionTitle(text: "what helps you\nrecharge?", subtitle: "select all that apply")

@@ -11,6 +11,7 @@ import SwiftUI
 struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var app = AppState(data: HealthKitDataProvider.shared)
+    @State private var permissions = PermissionsManager()
     @Namespace private var blob
 
     /// True quand on est dans le flux principal (post-onboarding).
@@ -89,32 +90,34 @@ struct RootView: View {
             }
         }
         .environment(app)
+        .environment(permissions)
         .animation(.easeInOut(duration: 0.45), value: app.screen)
         .preferredColorScheme(.light)
+        .task {
+            await permissions.refreshAll()
+        }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .background {
-                app.saveNow()
-            }
+            if phase == .background { app.saveNow() }
         }
         .onChange(of: app.screen) { _, screen in
-            if screen == .main {
-                app.publishWidgetEnergySnapshot()
-            }
+            if screen == .main { app.publishWidgetEnergySnapshot() }
         }
     }
 
     @ViewBuilder
     private var onboardingScreen: some View {
         switch app.screen {
-        case .splash:    SplashView(namespace: blob)
-        case .intro:     IntroView(namespace: blob)
-        case .energy:    EnergyView(namespace: blob)
-        case .now:       NowView(namespace: blob)
-        case .restores:  RestoresView(namespace: blob)
-        case .drains:    DrainsView(namespace: blob)
-        case .signals:   SignalsView(namespace: blob)
-        case .loading:   LoadingView(namespace: blob)
-        case .greeting:  GreetingView(namespace: blob)
+        case .splash:              SplashView(namespace: blob)
+        case .intro:               IntroView(namespace: blob)
+        case .energy:              EnergyView(namespace: blob)
+        case .now:                 NowView(namespace: blob)
+        case .sleep:               SleepView(namespace: blob)
+        case .healthPermission:    HealthPermissionView(namespace: blob)
+        case .restores:            RestoresView(namespace: blob)
+        case .drains:              DrainsView(namespace: blob)
+        case .calendarPermission:  CalendarPermissionView(namespace: blob)
+        case .loading:             LoadingView(namespace: blob)
+        case .greeting:            GreetingView(namespace: blob)
         case .main, .stats, .cards, .profile, .customize:
             MainView(namespace: blob)   // safety fallback — main-flow handled above
         }

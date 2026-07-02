@@ -10,6 +10,7 @@ import SwiftUI
 
 struct ProfileView: View {
     @Environment(AppState.self) private var app
+    @Environment(PermissionsManager.self) private var permissions
     var namespace: Namespace.ID
 
 #if DEBUG
@@ -76,9 +77,9 @@ struct ProfileView: View {
                           labels: app.drains,
                           emptyText: "Not set yet.")
 
-                // 3) Authorizations
-                sectionHeader("Authorizations")
-                authCard
+                // 3) Permissions (live from PermissionsManager)
+                sectionHeader("Permissions")
+                permissionsCard
 
                 // 4) Companion customization (existing)
                 sectionHeader("Companion")
@@ -224,36 +225,68 @@ struct ProfileView: View {
         )
     }
 
-    private var authCard: some View {
-        VStack(spacing: 0) {
-            authRow(name: "Health data",   granted: app.auth.health)
-            authDivider
-            authRow(name: "Calendar",      granted: app.auth.calendar)
-            authDivider
-            authRow(name: "Screen time",   granted: app.auth.screen)
-            authDivider
-            authRow(name: "Notifications", granted: app.auth.notify)
-        }
-        .komoGlassCard(cornerRadius: Theme.Radius.card, fillOpacity: 0.14, strokeOpacity: 0.24)
+    // MARK: - Permissions (live from PermissionsManager)
+
+    /// A row in the permissions section, tied to a live `PermissionState`.
+    private struct PermissionRowSpec {
+        let name: String
+        let state: PermissionState
+        let onTap: () -> Void
     }
 
-    private func authRow(name: String, granted: Bool) -> some View {
-        HStack {
-            Text(name).font(Theme.Font.body(15)).foregroundStyle(.white.opacity(0.85))
-            Spacer()
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(granted ? Theme.Palette.leaf : Color.white.opacity(0.35))
-                    .frame(width: 8, height: 8)
-                Text(granted ? "Granted" : "Not granted")
-                    .font(Theme.Font.label(13, weight: .semibold))
-                    .foregroundStyle(.white)
+    private var permissionsCard: some View {
+        let rows: [PermissionRowSpec] = [
+            .init(name: "Health data",   state: permissions.health,
+                  onTap: { Task { await permissions.requestHealth() } }),
+            .init(name: "Calendar",      state: permissions.calendar,
+                  onTap: { Task { await permissions.requestCalendar() } }),
+            .init(name: "Notifications", state: permissions.notifications,
+                  onTap: { Task { await permissions.requestNotifications() } }),
+            // Screen Time has no runtime API — tap deep-links to Settings.
+            .init(name: "Screen time",   state: permissions.screenTime,
+                  onTap: { permissions.openSettings() }),
+        ]
+        return VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { idx, row in
+                permissionRow(row)
+                if idx < rows.count - 1 {
+                    Divider().overlay(Color.white.opacity(0.12)).padding(.leading, 18)
+                }
             }
         }
-        .padding(.horizontal, 18).padding(.vertical, 14)
+        .komoGlassCard(cornerRadius: Theme.Radius.card, fillOpacity: 0.14, strokeOpacity: 0.24)
+        .task {
+            // Re-read system-authoritative state whenever Profile appears —
+            // status can change outside the app (Settings toggle).
+            await permissions.refreshAll()
+        }
     }
 
-    private var authDivider: some View {
-        Divider().overlay(Color.white.opacity(0.12)).padding(.leading, 18)
+    @ViewBuilder
+    private func permissionRow(_ row: PermissionRowSpec) -> some View {
+        Button(action: row.onTap) {
+            HStack {
+                Text(row.name).font(Theme.Font.body(15)).foregroundStyle(.white.opacity(0.85))
+                Spacer()
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(row.state == .granted ? Theme.Palette.leaf : Color.white.opacity(0.35))
+                        .frame(width: 8, height: 8)
+                    Text(row.state.label)
+                        .font(Theme.Font.label(13, weight: .semibold))
+                        .foregroundStyle(.white)
+                    if row.state != .granted {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+                }
+            }
+            .padding(.horizontal, 18).padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(row.name), \(row.state.label)")
+        .accessibilityHint(row.state == .granted ? "" : "Requests this permission or opens Settings.")
     }
 }

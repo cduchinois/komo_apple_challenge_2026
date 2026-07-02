@@ -14,19 +14,21 @@ import SwiftData
 /// signals → loading → main.
 enum KomoScreen: String, Codable, Equatable {
     case splash
-    case intro          // hook: typewriter greeting + "let's go"
-    case energy         // Q1 — when do you feel most switched on?
-    case now            // Q2 — how's your energy right now?
-    case restores       // Q3 — what helps you recharge? (multi-select)
-    case drains         // Q4 — what usually drains you? (multi-select)
-    case signals        // permissions — activate on-device signals
-    case loading        // charging: building your first check-in
-    case greeting       // welcome back (returning users)
-    case main           // home companion screen
-    case stats          // the passive-signals scroll
-    case cards          // insights, todos & saved cards
-    case profile        // companion profile summary
-    case customize      // edit name / surface / eyes / legs / world
+    case intro                 // hook: typewriter greeting + "let's go"
+    case energy                // Q1 — when do you feel most switched on?
+    case now                   // Q2 — how's your energy right now?
+    case sleep                 // Q sleep — did you sleep well last night?
+    case healthPermission      // contextual health-data permission request
+    case restores              // Q3 — what helps you recharge? (multi-select)
+    case drains                // Q4 — what usually drains you? (multi-select)
+    case calendarPermission    // conditional calendar permission (from Q4 drains)
+    case loading               // charging: building your first check-in
+    case greeting              // welcome back (returning users)
+    case main                  // home companion screen
+    case stats                 // the passive-signals scroll
+    case cards                 // insights, todos & saved cards
+    case profile               // companion profile summary
+    case customize             // edit name / surface / eyes / legs / world
 }
 
 // MARK: - Energy level (percent -> word + color)
@@ -80,6 +82,13 @@ enum ReflectionType: String, Codable, Equatable {
     case start     // an immediate move
 }
 
+// MARK: - Topic (rule-based matcher vocabulary)
+
+enum Topic: String, Equatable, Codable {
+    case meetings, scrolling, poorSleep, intenseWork, socialPlans, commute
+    case walking, music, quietTime, workout, napSleep, outdoorActivities, timeWithFriends
+}
+
 enum ReflectionAction: String, Identifiable, Codable, Equatable, CaseIterable {
     case addToCalendar
     case save
@@ -125,6 +134,22 @@ struct Reflection: Identifiable, Equatable {
     let observation: String
     let suggestion: String
     let actions: [ReflectionAction]
+    /// Tags used by the InsightSequencer to personalize the first two cards.
+    /// Cards with an empty `topics` array are never picked by the matcher
+    /// (they still appear in the general pool afterwards).
+    let topics: [Topic]
+
+    init(type: ReflectionType,
+         observation: String,
+         suggestion: String,
+         actions: [ReflectionAction],
+         topics: [Topic] = []) {
+        self.type = type
+        self.observation = observation
+        self.suggestion = suggestion
+        self.actions = actions
+        self.topics = topics
+    }
 
     /// If the suggestion mentions "N-minute" / "N minute" / "N minutes", extract N.
     /// Otherwise 3:00 default for focus timer.
@@ -164,15 +189,7 @@ struct TodoItem: Identifiable, Codable, Equatable {
     let createdAt: Date
 }
 
-// MARK: - Snack (mutable stock)
-
-struct Snack: Identifiable, Codable, Equatable {
-    var id = UUID()
-    let name: String
-    let icon: String            // emoji
-    let energyBoost: Double     // points added to energy hero
-    var stock: Int              // remaining pieces
-}
+// NOTE: Snacks replaced by stars — see `starBalance` + `feedKomoWithStar()`.
 
 /// On-device signal permissions toggled on the Signals screen.
 /// Card order matches the prototype: health, calendar, screen, notify.
@@ -190,8 +207,12 @@ struct SignalAuth: Codable, Equatable {
 @Observable
 final class AppState {
 
-    // MARK: Injected data source (swap for HealthKit later)
-    let data: EnergyDataProviding
+    // MARK: Injected data source (swappable)
+    //
+    // Provider precedence: real HealthKit-backed scorer (future) > onboarding
+    // scorer > MockDataProvider. Starts as mock; upgraded to
+    // `OnboardingEnergyScorer` as soon as we have onboarding answers.
+    var data: EnergyDataProviding
 
     // MARK: Navigation
     var screen: KomoScreen = .splash { didSet { persistAfterChange() } }
@@ -199,11 +220,18 @@ final class AppState {
 
     // MARK: Onboarding answers
     var userName: String = "" { didSet { persistAfterChange() } }
-    var energyType: String? = nil { didSet { persistAfterChange() } }     // Q1 — peak time of day
-    var energyNow: String? = nil { didSet { persistAfterChange() } }      // Q2 — energy right now
-    var restores: [String] = [] { didSet { persistAfterChange() } }       // Q3 — what recharges (multi)
-    var drains: [String] = [] { didSet { persistAfterChange() } }         // Q4 — what drains (multi)
-    var auth = SignalAuth() { didSet { persistAfterChange() } }           // on-device signal permissions
+    var energyType: String? = nil { didSet { persistAfterChange() } }
+    var energyNow: String? = nil { didSet { persistAfterChange() } }
+    var sleepAnswer: String? = nil { didSet { persistAfterChange() } }
+    var restores: [String] = [] { didSet { persistAfterChange() } }
+    var drains: [String] = [] { didSet { persistAfterChange() } }
+    var auth = SignalAuth() { didSet { persistAfterChange() } }
+
+    static let calendarBranchDrains: Set<String> = ["meetings", "intense work", "social plans"]
+
+    var needsCalendarPermission: Bool {
+        !drains.isEmpty && drains.contains { Self.calendarBranchDrains.contains($0) }
+    }
 
     // MARK: Companion configuration
     var characterIndex = 1 { didSet { persistAfterChange() } }            // default: Moku (calm)
@@ -221,14 +249,20 @@ final class AppState {
     var reminderAdded = false { didSet { persistAfterChange() } }
 
     // MARK: Home state — Reflect
-    /// Cursor into `Self.reflectionPool`. Cycles without immediate repeats.
     var reflectionIndex: Int = 0 { didSet { persistAfterChange() } }
 
+    /// Onboarding-derived topic sets used by the InsightSequencer. Ordered by
+    /// the user's selection order — the matcher walks them in that order.
+    /// Persisted so the same personalization survives relaunches.
+    var userDrainTopics: [Topic] = []
+    var userRechargeTopics: [Topic] = []
+
     // MARK: Home state — Feed
-    /// Points added to today's baseline energy by feeding. Capped at +30.
     var energyBoost: Double = 0 { didSet { persistAfterChange() } }
-    /// Mutable snack inventory (stock decreases as the user feeds).
-    var snacks: [Snack] = AppState.initialSnacks { didSet { persistAfterChange() } }
+
+    // MARK: Stars — feed currency (earned from Recharge / FocusTimer)
+    var starBalance: Int = 2 { didSet { persistAfterChange() } }
+    var starsFedTotal: Int = 0 { didSet { persistAfterChange() } }
 
     // MARK: Cards tab feeds
     var savedInsights: [SavedInsight] = [] { didSet { persistAfterChange() } }
@@ -242,7 +276,7 @@ final class AppState {
         restorePersistedState()
     }
 
-    // MARK: Persistence
+    // MARK: Persistence (SwiftData)
 
     func saveNow() {
         guard !isRestoringPersistedState else { return }
@@ -268,6 +302,7 @@ final class AppState {
             userName: userName,
             energyType: energyType,
             energyNow: energyNow,
+            sleepAnswer: sleepAnswer,
             restores: restores,
             drains: drains,
             auth: auth,
@@ -283,7 +318,10 @@ final class AppState {
             reminderAdded: reminderAdded,
             reflectionIndex: reflectionIndex,
             energyBoost: energyBoost,
-            snacks: snacks,
+            starBalance: starBalance,
+            starsFedTotal: starsFedTotal,
+            userDrainTopics: userDrainTopics.map(\.rawValue),
+            userRechargeTopics: userRechargeTopics.map(\.rawValue),
             savedInsights: savedInsights,
             todos: todos
         )
@@ -295,6 +333,7 @@ final class AppState {
         userName = persisted.userName
         energyType = persisted.energyType
         energyNow = persisted.energyNow
+        sleepAnswer = persisted.sleepAnswer
         restores = persisted.restores
         drains = persisted.drains
         auth = persisted.auth
@@ -310,9 +349,22 @@ final class AppState {
         reminderAdded = persisted.reminderAdded
         reflectionIndex = max(0, persisted.reflectionIndex)
         energyBoost = min(30, max(0, persisted.energyBoost))
-        snacks = persisted.snacks.isEmpty ? Self.initialSnacks : persisted.snacks
+        starBalance = max(0, persisted.starBalance)
+        starsFedTotal = max(0, persisted.starsFedTotal)
+        userDrainTopics = persisted.userDrainTopics.compactMap(Topic.init(rawValue:))
+        userRechargeTopics = persisted.userRechargeTopics.compactMap(Topic.init(rawValue:))
         savedInsights = persisted.savedInsights
         todos = persisted.todos
+
+        // Upgrade data provider when onboarding answers are already known.
+        if energyType != nil || energyNow != nil || sleepAnswer != nil {
+            self.data = OnboardingEnergyScorer(
+                energyNow: energyNow,
+                sleepAnswer: sleepAnswer,
+                energyType: energyType,
+                fallback: data
+            )
+        }
     }
 
     private func persistCurrentEnergyCheckIn() {
@@ -325,55 +377,49 @@ final class AppState {
         )
     }
 
-    @MainActor
-    func completeOnboardingLoad() async {
-        guard screen == .loading else { return }
-
-        loadingPct = max(loadingPct, 12)
-        saveNow()
-        try? await Task.sleep(for: .milliseconds(180))
-
-        loadingPct = max(loadingPct, 34)
-        if auth.health || auth.calendar {
-            await HealthKitDataProvider.shared.requestPermissions()
-        }
-        saveNow()
-        try? await Task.sleep(for: .milliseconds(180))
-
-        loadingPct = max(loadingPct, 68)
-        if auth.health || auth.calendar {
-            await HealthKitDataProvider.shared.loadToday()
-        }
-        saveNow()
-        try? await Task.sleep(for: .milliseconds(180))
-
-        loadingPct = max(loadingPct, 92)
-        publishWidgetEnergySnapshot()
-        persistCurrentEnergyCheckIn()
-        saveNow()
-        try? await Task.sleep(for: .milliseconds(250))
-
+    /// Called at the start of LoadingView — snapshots onboarding answers into
+    /// topic sets and upgrades the data provider.
+    func completeOnboarding() {
+        userDrainTopics    = drains.compactMap { Topic(rawValue: $0.replacingOccurrences(of: " ", with: "")) }
+        userRechargeTopics = restores.compactMap { Topic(rawValue: $0.replacingOccurrences(of: " ", with: "")) }
         returning = true
-        loadingPct = 100
-        go(.main)
+        data = OnboardingEnergyScorer(
+            energyNow: energyNow,
+            sleepAnswer: sleepAnswer,
+            energyType: energyType,
+            fallback: data
+        )
         saveNow()
     }
 
+    /// Requests HealthKit permissions and loads today's data in the background.
+    @MainActor
+    func completeOnboardingLoad() async {
+        if auth.health || auth.calendar {
+            await HealthKitDataProvider.shared.requestPermissions()
+            await HealthKitDataProvider.shared.loadToday()
+        }
+        publishWidgetEnergySnapshot()
+        persistCurrentEnergyCheckIn()
+        saveNow()
+    }
+
+    // MARK: - UserDefaults keys (personalization + cursor + score persistence)
+
+    private static let udkDrainTopics     = "komo.userDrainTopics"
+    private static let udkRechargeTopics  = "komo.userRechargeTopics"
+    private static let udkReflectionIndex = "komo.reflectionIndex"
+    private static let udkEnergyType      = "komo.energyType"        // Q1
+    private static let udkEnergyNow       = "komo.energyNow"         // Q2
+    private static let udkSleepAnswer     = "komo.sleepAnswer"       // Sleep Q
+    private static let udkLastPercent     = "komo.lastPercent"       // widget/cold-start hint
+    private static let udkStarBalance     = "komo.starBalance"       // spendable stars
+    private static let udkStarsFedTotal   = "komo.starsFedTotal"     // lifetime feed count → level
+
     // MARK: Static demo content
-
-    /// Two starter snacks, each with limited stock (2 pieces).
-    /// Energy values kept small so the hero moves subtly, not dramatically.
-    static let initialSnacks: [Snack] = [
-        .init(name: "Apple",  icon: "🍎", energyBoost: 1.0, stock: 2),
-        .init(name: "Walnut", icon: "🥜", energyBoost: 0.5, stock: 2),
-    ]
-
-    /// Additional snack shapes shown as locked in the store, with a hint on
-    /// how to earn them (rest + movement).
-    static let lockedSnackPreviews: [(name: String, icon: String)] = [
-        ("Berry",  "🫐"),
-        ("Cookie", "🍪"),
-    ]
+    //
+    // (Stars are a KOMO-only currency now — feeding no longer touches the
+    // user's energy pipeline, so no energy-per-star constant is needed here.)
 
     /// A light seed of evergreen energy tips shown in the Cards tab's
     /// "Energy advice" section. TODO: derive these from real patterns.
@@ -385,108 +431,159 @@ final class AppState {
         "Screen dimming after 9pm often improves sleep depth.",
     ]
 
-    /// The Reflect pool — exactly 25 cards, in this order.
+    /// The Reflect pool — exactly 25 cards, in this order. Topic tags feed
+    /// the InsightSequencer's rule-based matcher.
     static let reflectionPool: [Reflection] = [
+        // 1
         .init(type: .add,
               observation: "your energy often dips after back-to-back meetings.",
               suggestion: "take 5 minutes outside before your next call.",
-              actions: [.addToCalendar, .save, .next]),
+              actions: [.addToCalendar, .save, .next],
+              topics: [.meetings]),
+        // 2
         .init(type: .reflect,
               observation: "you slept 7+ hours on five nights this week.",
               suggestion: "your body seems to recover better when sleep is consistent.",
-              actions: [.writeNote, .save, .next]),
+              actions: [.writeNote, .save, .next],
+              topics: [.napSleep, .poorSleep]),
+        // 3
         .init(type: .remind,
               observation: "afternoons feel foggy on days you eat a heavy lunch.",
               suggestion: "try a lighter lunch before 1pm today.",
-              actions: [.remindMe, .save, .next]),
+              actions: [.remindMe, .save, .next],
+              topics: []),
+        // 4
         .init(type: .remind,
               observation: "your screen time usually climbs after 9pm.",
               suggestion: "dim your phone at 9 tonight and see how your sleep feels.",
-              actions: [.remindMe, .save, .next]),
+              actions: [.remindMe, .save, .next],
+              topics: [.scrolling, .poorSleep]),
+        // 5
         .init(type: .start,
               observation: "you skipped your usual workout today.",
               suggestion: "try a quick 10-minute reset instead.",
-              actions: [.startNow, .save, .next]),
+              actions: [.startNow, .save, .next],
+              topics: [.workout]),
+        // 6
         .init(type: .start,
               observation: "mornings go better when you begin with focus instead of scrolling.",
               suggestion: "start a 10-minute focus session.",
-              actions: [.startNow, .remindMe, .next]),
+              actions: [.startNow, .remindMe, .next],
+              topics: [.scrolling]),
+        // 7
         .init(type: .start,
               observation: "someone's been on your mind.",
               suggestion: "send a quick text or call them now.",
-              actions: [.startNow, .done, .next]),
+              actions: [.startNow, .done, .next],
+              topics: [.timeWithFriends]),
+        // 8
         .init(type: .add,
               observation: "your calendar looks packed before lunch.",
               suggestion: "block 10 minutes after your last morning meeting.",
-              actions: [.addToCalendar, .next]),
+              actions: [.addToCalendar, .next],
+              topics: [.meetings, .intenseWork]),
+        // 9
         .init(type: .remind,
               observation: "you tend to sit for long stretches on workdays.",
               suggestion: "stand up for 3 minutes before your next session.",
-              actions: [.remindMe, .done, .next]),
+              actions: [.remindMe, .done, .next],
+              topics: [.intenseWork]),
+        // 10
         .init(type: .start,
               observation: "your energy looks low right now.",
               suggestion: "do a 2-minute reset: breathe, stretch, drink water.",
-              actions: [.startNow, .next]),
+              actions: [.startNow, .next],
+              topics: []),
+        // 11
         .init(type: .remind,
               observation: "late workouts seem to push your bedtime later.",
               suggestion: "try moving your workout earlier today.",
-              actions: [.remindMe, .save, .next]),
+              actions: [.remindMe, .save, .next],
+              topics: [.workout, .poorSleep]),
+        // 12
         .init(type: .reflect,
               observation: "you moved more than usual yesterday.",
               suggestion: "your energy looks steadier after active days.",
-              actions: [.save, .writeNote, .next]),
+              actions: [.save, .writeNote, .next],
+              topics: [.workout, .walking]),
+        // 13
         .init(type: .start,
               observation: "your focus usually improves after a short walk.",
               suggestion: "take a 7-minute walk without your phone.",
-              actions: [.startNow, .done, .next]),
+              actions: [.startNow, .done, .next],
+              topics: [.walking]),
+        // 14
         .init(type: .remind,
               observation: "your evening energy crashes after long screen sessions.",
               suggestion: "take a screen break before dinner.",
-              actions: [.remindMe, .next]),
+              actions: [.remindMe, .next],
+              topics: [.scrolling]),
+        // 15
         .init(type: .add,
               observation: "you have a heavy meeting block today.",
               suggestion: "protect a recovery gap after it.",
-              actions: [.addToCalendar, .next]),
+              actions: [.addToCalendar, .next],
+              topics: [.meetings]),
+        // 16
         .init(type: .start,
               observation: "you look mentally loaded today.",
               suggestion: "clear one small task in 10 minutes.",
-              actions: [.startNow, .next]),
+              actions: [.startNow, .next],
+              topics: [.intenseWork]),
+        // 17
         .init(type: .reflect,
               observation: "quiet time seems to help you recharge.",
               suggestion: "notice how you feel after 5 minutes without input.",
-              actions: [.writeNote, .save, .next]),
+              actions: [.writeNote, .save, .next],
+              topics: [.quietTime]),
+        // 18
         .init(type: .remind,
               observation: "your sleep tends to suffer after late scrolling.",
               suggestion: "start wind down mode at 9:30 tonight.",
-              actions: [.remindMe, .next]),
+              actions: [.remindMe, .next],
+              topics: [.scrolling, .poorSleep]),
+        // 19
         .init(type: .start,
               observation: "your body has been still for a while.",
               suggestion: "move for 5 minutes. nothing heroic.",
-              actions: [.startNow, .done, .next]),
+              actions: [.startNow, .done, .next],
+              topics: [.walking, .workout]),
+        // 20
         .init(type: .reflect,
               observation: "your best energy window is usually in the morning.",
               suggestion: "protect that window for deep work when you can.",
-              actions: [.save, .addToCalendar, .next]),
+              actions: [.save, .addToCalendar, .next],
+              topics: [.intenseWork]),
+        // 21
         .init(type: .remind,
               observation: "your afternoon dips often follow low-movement mornings.",
               suggestion: "take a short walk before lunch.",
-              actions: [.remindMe, .next]),
+              actions: [.remindMe, .next],
+              topics: [.walking]),
+        // 22
         .init(type: .start,
               observation: "you seem close to an energy crash.",
               suggestion: "pause for 3 minutes before pushing through.",
-              actions: [.startNow, .next]),
+              actions: [.startNow, .next],
+              topics: []),
+        // 23
         .init(type: .reflect,
               observation: "social time seems to recharge you on some days.",
               suggestion: "notice who gives you energy, not just attention.",
-              actions: [.writeNote, .save, .next]),
+              actions: [.writeNote, .save, .next],
+              topics: [.timeWithFriends, .socialPlans]),
+        // 24
         .init(type: .remind,
               observation: "your focus drops when meetings run back-to-back.",
               suggestion: "leave 5 minutes between calls when possible.",
-              actions: [.addToCalendar, .save, .next]),
+              actions: [.addToCalendar, .save, .next],
+              topics: [.meetings]),
+        // 25
         .init(type: .start,
               observation: "you have a small window right now.",
               suggestion: "use it to reset, not scroll.",
-              actions: [.startNow, .next]),
+              actions: [.startNow, .next],
+              topics: [.scrolling]),
     ]
 
     // MARK: Derived values
@@ -570,20 +667,99 @@ final class AppState {
         returning = false
         energyType = nil
         energyNow = nil
+        sleepAnswer = nil
         drains = []
         restores = []
         auth = SignalAuth()
         companionName = ""
     }
 
+    // MARK: - Onboarding → topics mapping
+
+    /// Map a Q4 drain selection string to a Topic (or nil if it has no mapping).
+    static func drainTopic(from selection: String) -> Topic? {
+        switch selection {
+        case "meetings":         return .meetings
+        case "screen time":      return .scrolling
+        case "poor sleep":       return .poorSleep
+        case "intense work":     return .intenseWork
+        case "social plans":     return .socialPlans
+        case "commute / travel": return .commute
+        default:                 return nil    // "sitting too long", "not sure yet"
+        }
+    }
+
+    /// Map a Q3 recharge selection string to a Topic (or nil if none).
+    static func rechargeTopic(from selection: String) -> Topic? {
+        switch selection {
+        case "walking":     return .walking
+        case "music":       return .music
+        case "quiet time":  return .quietTime
+        case "workout":     return .workout
+        case "nap / sleep": return .napSleep
+        case "outside":     return .outdoorActivities
+        case "talking":     return .timeWithFriends
+        default:            return nil     // "not sure yet"
+        }
+    }
+
+    /// Called when the user finishes onboarding (right before Loading).
+    /// - Snapshots drain/recharge topics for the Reflect matcher.
+    /// - Persists Q1/Q2/sleep so the OnboardingEnergyScorer works on cold launch.
+    /// - Swaps `data` for an OnboardingEnergyScorer wrapping the previous provider.
+    /// - Caches the freshly computed percent for a widget / cold-start hint.
+    /// - Resets the Reflect cursor so the personalized sequence starts at card 1.
+    func completeOnboarding() {
+        userDrainTopics    = drains.compactMap(Self.drainTopic(from:))
+        userRechargeTopics = restores.compactMap(Self.rechargeTopic(from:))
+        reflectionIndex = 0
+
+        // Wrap the current provider in the onboarding scorer so Home + the (i)
+        // sheet use the rule-based score from now on. If it's already wrapped
+        // (relaunch after onboarding), we re-wrap with the freshest answers.
+        let baseProvider: EnergyDataProviding = (data as? OnboardingEnergyScorer)?.fallback ?? data
+        let scorer = OnboardingEnergyScorer(
+            energyNow: energyNow,
+            sleepAnswer: sleepAnswer,
+            energyType: energyType,
+            fallback: baseProvider
+        )
+        data = scorer
+
+        let defaults = UserDefaults.standard
+        defaults.set(userDrainTopics.map(\.rawValue),    forKey: Self.udkDrainTopics)
+        defaults.set(userRechargeTopics.map(\.rawValue), forKey: Self.udkRechargeTopics)
+        defaults.set(reflectionIndex,                     forKey: Self.udkReflectionIndex)
+        defaults.set(energyType,                          forKey: Self.udkEnergyType)
+        defaults.set(energyNow,                           forKey: Self.udkEnergyNow)
+        defaults.set(sleepAnswer,                         forKey: Self.udkSleepAnswer)
+
+        // Cache the freshly computed percent for cold-start / widget hints.
+        defaults.set(scorer.currentSnapshot().percent, forKey: Self.udkLastPercent)
+    }
+
     // MARK: Home-screen state derivations
+
+    /// Personalized pool if the user has onboarding topics, else the plain pool.
+    /// Same output feeds both the Home insight card and the Reflect button so
+    /// they stay in sync.
+    /// TODO: replace `RuleBasedInsightSequencer` with the Foundation Models
+    ///       reasoning engine (same InsightSequencing protocol).
+    var resolvedPool: [Reflection] {
+        guard !userDrainTopics.isEmpty || !userRechargeTopics.isEmpty else {
+            return Self.reflectionPool
+        }
+        let sequencer: InsightSequencing = RuleBasedInsightSequencer()
+        return sequencer.orderedPool(from: Self.reflectionPool,
+                                     drains: userDrainTopics,
+                                     recharges: userRechargeTopics)
+    }
 
     /// The reflection currently displayed on the home speech card.
     /// Prefers data-personalized cards from the backend; falls back to the
     /// static pool so the card is never empty.
     var currentReflection: Reflection {
-        let personalized = data.personalizedReflections()
-        let pool = personalized.isEmpty ? Self.reflectionPool : personalized
+        let pool = resolvedPool
         return pool[reflectionIndex % pool.count]
     }
 
@@ -614,11 +790,11 @@ final class AppState {
 
     // MARK: Reflect — cycle through the pool
 
-    /// Advance to the next Reflection (non-repeating).
+    /// Advance to the next Reflection (non-repeating). Uses the resolved pool
+    /// count so cursor arithmetic matches whatever pool the UI is showing.
+    /// Persists to UserDefaults so the position survives relaunch.
     func advanceReflection() {
-        let personalized = data.personalizedReflections()
-        let pool = personalized.isEmpty ? Self.reflectionPool : personalized
-        reflectionIndex = (reflectionIndex + 1) % pool.count
+        reflectionIndex = (reflectionIndex + 1) % max(1, resolvedPool.count)
     }
 
     // MARK: Reflect — action handlers (per-card buttons)
@@ -690,17 +866,50 @@ final class AppState {
         todos.removeAll { $0.id == item.id }
     }
 
-    // MARK: Feed — decrement stock, bump energy, blob love
+    // MARK: Stars — earn (Recharge / Focus) + spend (Feed)
 
-    /// Feed a snack by ID. Decrements that snack's stock and adds a small
-    /// energy boost (Apple +1, Walnut +0.5). Caller triggers the drop-to-blob
-    /// treat animation and the rising heart in the view.
-    func feed(snackID: Snack.ID) {
-        guard let idx = snacks.firstIndex(where: { $0.id == snackID }),
-              snacks[idx].stock > 0 else { return }
-        snacks[idx].stock -= 1
-        energyBoost = min(30, energyBoost + snacks[idx].energyBoost)
+    /// Grants stars for a completed Recharge / FocusTimer session. Persists.
+    func earnStar(_ count: Int = 1) {
+        guard count > 0 else { return }
+        starBalance += count
+        UserDefaults.standard.set(starBalance, forKey: Self.udkStarBalance)
     }
+
+    /// Try to spend one star to feed KOMO. Returns `true` if the star was
+    /// available and spent; the caller then plays the drop → blob animation.
+    /// Feeding KOMO is purely for KOMO: it does NOT touch the user's energy
+    /// pipeline (`energyBoost` / `homeEnergyPercent`). It only decrements the
+    /// star balance and bumps the lifetime feed counter that drives KOMO's
+    /// level.
+    @discardableResult
+    func feedKomoWithStar() -> Bool {
+        guard starBalance > 0 else { return false }
+        starBalance -= 1
+        starsFedTotal += 1
+        let defaults = UserDefaults.standard
+        defaults.set(starBalance,   forKey: Self.udkStarBalance)
+        defaults.set(starsFedTotal, forKey: Self.udkStarsFedTotal)
+        return true
+    }
+
+    // MARK: KOMO level (derived from feeds + days together)
+
+    /// Integer level starting at 1, increasing every 3 combined
+    /// (feed events + days together) units.
+    var komoLevel: Int {
+        1 + (starsFedTotal + max(0, currentDaysTogether - 1)) / 3
+    }
+
+    /// Progress toward the next level in 0...1.
+    var komoLevelProgress: Double {
+        let total = starsFedTotal + max(0, currentDaysTogether - 1)
+        let intoLevel = total % 3
+        return Double(intoLevel) / 3.0
+    }
+
+    /// Days together — placeholder for the real onboarding-anniversary count.
+    /// TODO: wire real `daysTogether` from a persisted onboarding date.
+    var currentDaysTogether: Int { 1 }
 
     func addReminder() {
         reminderAdded = true
@@ -708,12 +917,13 @@ final class AppState {
 }
 
 private struct PersistedAppState: Codable {
-    var version: Int = 1
+    var version: Int = 2
     var screen: KomoScreen
     var returning: Bool
     var userName: String
     var energyType: String?
     var energyNow: String?
+    var sleepAnswer: String?
     var restores: [String]
     var drains: [String]
     var auth: SignalAuth
@@ -729,7 +939,10 @@ private struct PersistedAppState: Codable {
     var reminderAdded: Bool
     var reflectionIndex: Int
     var energyBoost: Double
-    var snacks: [Snack]
+    var starBalance: Int = 2
+    var starsFedTotal: Int = 0
+    var userDrainTopics: [String] = []
+    var userRechargeTopics: [String] = []
     var savedInsights: [SavedInsight]
     var todos: [TodoItem]
 }

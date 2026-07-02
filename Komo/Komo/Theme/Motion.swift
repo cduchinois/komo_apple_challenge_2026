@@ -10,67 +10,6 @@
 
 import SwiftUI
 
-// MARK: - Legacy BlobView compatibility
-
-struct BlobTransform {
-    var dx: Double = 0
-    var dy: Double = 0
-    var scaleX: Double = 1
-    var scaleY: Double = 1
-    var rotation: Double = 0
-}
-
-enum BlobAnim: Equatable {
-    case none, float, listen, bounce, charge
-
-    var moodDuration: Double {
-        switch self {
-        case .none: return 1
-        case .float: return 6.5
-        case .listen: return 4.8
-        case .bounce: return 2.8
-        case .charge: return 3.6
-        }
-    }
-
-    func transform(at phase: Double) -> BlobTransform {
-        let p = phase * 2 * .pi
-        switch self {
-        case .none:
-            return BlobTransform()
-        case .float:
-            return BlobTransform(dy: -7 * sin(p), rotation: 0.7 * cos(p))
-        case .listen:
-            return BlobTransform(dy: -3 * sin(p), scaleX: 1 + 0.015 * sin(p), scaleY: 1 - 0.015 * sin(p))
-        case .bounce:
-            let hop = max(0, sin(p))
-            return BlobTransform(dy: -10 * hop, scaleX: 1 + 0.035 * hop, scaleY: 1 - 0.035 * hop)
-        case .charge:
-            return BlobTransform(dy: -5 * sin(p), scaleX: 1 + 0.025 * sin(p), scaleY: 1 - 0.025 * sin(p))
-        }
-    }
-}
-
-struct MotionPreset {
-    var outer: Double
-    var breathe: Double
-    var morph: Double
-    var outerKind: BlobAnim
-
-    static func forMotion(_ motion: CompanionMotion) -> MotionPreset {
-        switch motion {
-        case .calm:
-            return MotionPreset(outer: 6.5, breathe: 3.6, morph: 8.0, outerKind: .float)
-        case .bounce:
-            return MotionPreset(outer: 2.8, breathe: 2.7, morph: 5.0, outerKind: .bounce)
-        case .dynamic:
-            return MotionPreset(outer: 4.8, breathe: 3.1, morph: 6.0, outerKind: .listen)
-        case .energy:
-            return MotionPreset(outer: 3.6, breathe: 2.4, morph: 4.5, outerKind: .charge)
-        }
-    }
-}
-
 // MARK: - Keyframe interpolation
 
 /// One stop on a keyframe track: a normalized time and the value at that time.

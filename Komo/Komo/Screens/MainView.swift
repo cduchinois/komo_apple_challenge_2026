@@ -1,14 +1,17 @@
 //  MainView.swift
 //  Komo
 //
-//  Home — the single question this screen answers: "What is my energy today,
-//  and what should I do next?" Layout, top to bottom:
+//  Home. New composition, top to bottom:
 //    1. Header — "Day N with KOMO"
-//    2. Reflection card (observation / suggestion / per-card buttons)
-//    3. Companion (blob) — tap = tiny reaction only, not navigation
-//    4. Energy hero — color-graded word + percent (green→red via EnergyLevel)
-//    5. Action area — Feed, Reflect, Recharge (three glass buttons)
-//  No elastic bottom Spacer; the tab bar comes from RootView's TabView.
+//    2. Energy hero — moved up under the header (word + info + percent + bar)
+//    3. Reflection card
+//    4. Companion (blob) — visual anchor of the lower half, with a small
+//       KOMO-level pill on the head side
+//    5. Action area — three glass bubbles arranged in a shallow arc around
+//       the mascot: Feed centered + lower + full size, Reflect (left) and
+//       Recharge (right) smaller, slightly higher, subtly less opaque.
+//  Feed spends stars now (no more snack store). Stars are earned by
+//  completing a Recharge session or a Focus timer.
 
 import SwiftUI
 
@@ -22,8 +25,9 @@ struct MainView: View {
     // Blob tap reaction (squash + tiny heart).
     @State private var blobSquash: CGFloat = 1.0
     @State private var showHeart = false
+    // Shine ring emitted from KOMO when fed a star.
+    @State private var shineID: Int = 0
     // Sheets
-    @State private var showSnackStore = false
     @State private var showRecharge = false
     @State private var showEnergyInfo = false
     @State private var showNoteSheet = false
@@ -39,32 +43,31 @@ struct MainView: View {
             header
                 .padding(.top, 6)
 
+            energyHero
+                .padding(.top, 14)
+
             insightCard
-                .padding(.top, 18)
+                .padding(.top, 14)
 
             companionStage
                 .padding(.top, 10)
 
-            energyHero
-                .padding(.top, 6)
-
             actionArea
-                .padding(.top, 18)
+                // Pulled up so the arc sits AROUND the mascot, not detached
+                // below it.
+                .padding(.top, -30)
         }
-        // Shared horizontal margin token → reflection card, energy hero, bar,
-        // and action row all sit inside the same symmetric inset.
+        // Shared horizontal margin token — everything lines up on the same
+        // symmetric inset.
         .padding(.horizontal, Theme.Space.screenH)
         .padding(.top, 8)   // sits just below the safe-area inset
         .overlay(alignment: .top) { toastOverlay }
-        .sheet(isPresented: $showSnackStore) {
-            SnackStoreSheet { snack in
-                showSnackStore = false
-                feedWithSnack(snack)
-            }
-            .environment(app)
-        }
         .sheet(isPresented: $showRecharge) {
-            RechargeSheet()
+            RechargeSheet {
+                // Recharge completion → +1 star.
+                app.earnStar()
+                flashToast("Recharge complete · ★ +1")
+            }
         }
         .sheet(isPresented: $showEnergyInfo) {
             EnergyBreakdownSheet(breakdown: app.data.energyBreakdown())
@@ -81,9 +84,10 @@ struct MainView: View {
         .fullScreenCover(isPresented: $showFocusTimer) {
             FocusTimerView(durationSeconds: focusDurationSeconds) {
                 showFocusTimer = false
-                // Reward on completion: blob love.
+                // Focus completion → blob love + +1 star + advance.
                 blobReact()
-                flashToast("Session complete")
+                app.earnStar()
+                flashToast("Session complete · ★ +1")
                 app.advanceReflection()
             }
         }
@@ -215,18 +219,21 @@ struct MainView: View {
         // via their .padding(.top) offsets.
         VStack(spacing: 4) {
             ZStack {
-                // TODO(mascot-rollout): character.motion / hue / style / eyes /
-                // legs dropped — manual's default idle is used everywhere.
-                // Tap reaction (blobReact) + feed drop/rise + love-back still
-                // wire through: the scaleEffect(blobSquash) and the feed/heart
-                // overlays live in the same ZStack and target the mascot's
-                // center identically to before.
+                // Shine ring — emitted from KOMO when fed a star. Every feed
+                // bumps `shineID`, spawning a fresh ring below the mascot.
+                ShineRing(id: shineID, size: KomoMascotView.standardSize)
+                    .allowsHitTesting(false)
+
                 KomoMascotView(size: KomoMascotView.standardSize,
                                onTap: { blobReact() },
                                namespace: namespace,
                                geometryID: "companion",
                                accessibilityLabelText: "\(app.companionDisplayName), your companion. Double tap for a reaction.")
                     .scaleEffect(blobSquash)
+                    .overlay(alignment: .topTrailing) {
+                        LevelBadge(level: app.komoLevel, progress: app.komoLevelProgress)
+                            .offset(x: 6, y: 4)
+                    }
 
                 if showHeart {
                     Text("❤️")
@@ -319,39 +326,55 @@ struct MainView: View {
         .accessibilityLabel("Today's energy: \(level.word), \(percent) percent.")
     }
 
-    // MARK: 5. Action area — Feed / Reflect / Recharge
+    // MARK: 5. Action area — Reflect / Feed (center) / Recharge in an arc
+    //
+    // The three glass bubbles curve around KOMO rather than sitting in a flat
+    // row. Feed is the center bubble at full 100pt, positioned slightly lower
+    // (closest to the viewer). Reflect and Recharge sit at ~78pt and are
+    // offset slightly higher + subtly dimmer to read as receding into depth.
 
     private var actionArea: some View {
         GlassCluster(spacing: 10) {
-            HStack(spacing: 10) {
-                // Feed — fruit apple silhouette (SF Symbols has no whole-apple
-                // glyph; emojis ignore .foregroundStyle so we mask a white
-                // rectangle with the 🍎 shape to match the other white icons).
-                ActionButton(title: "Feed", action: { showSnackStore = true }) {
-                    Color.white
-                        .frame(width: 34, height: 34)
-                        .mask {
-                            Text("🍎")
-                                .font(.system(size: 34))
-                        }
-                }
-                .frame(width:100, height:100)
-                .glassEffect(.clear.interactive(), in:Circle())
-
+            ZStack {
+                // Reflect — side bubble, upper-left, dimmer + smaller.
+                // Floating: slightly shorter cycle, phase-shifted so it never
+                // beats in unison with the others.
                 ActionButton(title: "Reflect", action: {
                     withAnimation(.spring(response: 0.35)) { app.advanceReflection() }
                 }) {
                     Image(systemName: "lightbulb.fill")
                 }
-                .frame(width:100, height:100)
-                .glassEffect(.clear.interactive(), in:Circle())
+                .frame(width: 78, height: 78)
+                .glassEffect(.clear.interactive(), in: Circle())
+                .opacity(0.85)
+                .offset(x: -100, y: -14)
+                .modifier(FloatingDrift(amplitude: 4, period: 4.5, phase: 0.30))
 
+                // Recharge — side bubble, upper-right, dimmer + smaller.
                 ActionButton(title: "Recharge", action: { showRecharge = true }) {
                     Image(systemName: "bolt.fill")
                 }
-                .frame(width:100, height:100)
-                .glassEffect(.clear.interactive(), in:Circle())
+                .frame(width: 78, height: 78)
+                .glassEffect(.clear.interactive(), in: Circle())
+                .opacity(0.85)
+                .offset(x: 100, y: -14)
+                .modifier(FloatingDrift(amplitude: 5, period: 5.5, phase: 0.60))
+
+                // Feed — center bubble, full-size, lower, closest to viewer.
+                // Icon = star.fill; tiny "+N" badge on the top-right.
+                ActionButton(title: "Feed", action: { feedTap() }) {
+                    Image(systemName: "star.fill")
+                }
+                .frame(width: 100, height: 100)
+                .glassEffect(.clear.interactive(), in: Circle())
+                .overlay(alignment: .topTrailing) {
+                    StarCountBadge(count: app.starBalance)
+                        .offset(x: 6, y: -4)
+                }
+                .offset(y: 22)
+                .modifier(FloatingDrift(amplitude: 5, period: 5.0, phase: 0.00))
             }
+            .frame(height: 130)
         }
     }
 
@@ -404,14 +427,31 @@ struct MainView: View {
         }
     }
 
-    private func feedWithSnack(_ snack: Snack) {
-        let item = FeedItem(icon: snack.icon)
+    // MARK: Feed with a star
+
+    /// Tap on the Feed bubble. Spends one star if available, otherwise nudges
+    /// the user to earn one via Recharge / Focus.
+    private func feedTap() {
+        if app.starBalance > 0 {
+            feedWithStar()
+        } else {
+            flashToast("Recharge to earn stars for KOMO")
+        }
+    }
+
+    /// Drop a star into KOMO. Reuses the existing FeedItem/FeedItemView drop
+    /// animation, then applies the energy boost, emits a shine ring and a
+    /// blob love reaction when the drop lands.
+    private func feedWithStar() {
+        let ok = app.feedKomoWithStar()
+        guard ok else { return }
+        let item = FeedItem(icon: "⭐")
         feedItems.append(item)
-        // Energy update + blob "love" reaction fire after the drop lands
-        // (feels causal). Stock is decremented via the same call.
+
+        // Blob love + shine ring fire after the star lands (feels causal).
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(850))
-            withAnimation(.spring) { app.feed(snackID: snack.id) }
+            withAnimation(.spring) { shineID &+= 1 }
             app.publishWidgetEnergySnapshot()
             blobReact()
         }
@@ -516,121 +556,120 @@ private struct RiseEffect: ViewModifier {
     }
 }
 
-// MARK: - Snack store sheet (Feed) — stock-aware
+// MARK: - Slow vertical floating for action bubbles
+//
+// A continuous, gentle vertical drift (sinusoidal ease-in-out). Each bubble
+// gets its own `period` and `phase` so the three never move in unison.
+// Bypassed entirely when `accessibilityReduceMotion` is on.
 
-private struct SnackStoreSheet: View {
-    @Environment(AppState.self) private var app
-    var onPick: (Snack) -> Void
+private struct FloatingDrift: ViewModifier {
+    var amplitude: CGFloat   // pt, peak-to-center
+    var period: Double       // seconds per full cycle
+    var phase: Double        // 0..1 phase offset
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        if reduceMotion {
+            content
+        } else {
+            TimelineView(.animation) { tl in
+                let t = tl.date.timeIntervalSinceReferenceDate
+                let p = (t / period + phase).truncatingRemainder(dividingBy: 1)
+                let y = amplitude * CGFloat(sin(p * 2 * .pi))
+                content.offset(y: y)
+            }
+        }
+    }
+}
+
+// MARK: - Star count badge (small "+N" pill on the Feed bubble)
+//
+// The button icon is already a star — the badge only shows the spendable
+// count with a "+" prefix. Hidden entirely when there are no stars.
+
+private struct StarCountBadge: View {
+    var count: Int
 
     var body: some View {
-        VStack(spacing: 12) {
-            VStack(spacing: 2) {
-                Text("Snack store")
-                    .font(Theme.Font.title(19))
-                Text("Feed one to KOMO.")
-                    .font(Theme.Font.body(12))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.top, 6)
-
-            // Available snacks — greyed out & disabled when stock hits 0.
-            VStack(spacing: 8) {
-                ForEach(app.snacks) { snack in
-                    let available = snack.stock > 0
-                    Button {
-                        if available { onPick(snack) }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Text(snack.icon).font(.system(size: 28))
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(snack.name)
-                                    .font(Theme.Font.label(15))
-                                    .foregroundStyle(.primary)
-                                Text("+\(formatBoost(snack.energyBoost)) energy · \(snack.stock) left")
-                                    .font(Theme.Font.body(12))
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if available {
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(.tertiary)
-                            } else {
-                                Text("Empty")
-                                    .font(Theme.Font.label(11, weight: .bold))
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 8).padding(.vertical, 3)
-                                    .background(Color.gray.opacity(0.18),
-                                                in: Capsule(style: .continuous))
-                            }
-                        }
-                        .padding(.horizontal, 12).padding(.vertical, 10)
-                        .background(Color.white.opacity(available ? 0.7 : 0.35),
-                                    in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.chip)
-                            .strokeBorder(Color.black.opacity(0.08), lineWidth: 1))
-                        .opacity(available ? 1 : 0.55)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!available)
-                    .accessibilityLabel("Feed \(snack.name), \(available ? "\(snack.stock) left" : "empty")")
-                }
-            }
-            .padding(.horizontal, 20)
-
-            // Locked
-            VStack(alignment: .leading, spacing: 6) {
-                Text("LOCKED")
-                    .font(Theme.Font.label(10, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .tracking(1.1)
-                    .padding(.leading, 4)
-
-                VStack(spacing: 8) {
-                    ForEach(AppState.lockedSnackPreviews, id: \.name) { snack in
-                        HStack(spacing: 12) {
-                            Text(snack.icon).font(.system(size: 22))
-                            Text(snack.name)
-                                .font(Theme.Font.label(14))
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(.tertiary)
-                        }
-                        .padding(.horizontal, 12).padding(.vertical, 8)
-                        .background(Color.white.opacity(0.35),
-                                    in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
-                        .opacity(0.7)
-                    }
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 4)
-
-            Text("Earned through rest and movement (sleep, workouts).")
-                .font(Theme.Font.body(11))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-                .padding(.top, 2)
-                .padding(.bottom, 14)
+        if count > 0 {
+            Text("+\(count)")
+                .font(Theme.Font.label(11, weight: .heavy))
+                .monospacedDigit()
+                .foregroundStyle(Color(hex: 0xFFD54D))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.black.opacity(0.55), in: Capsule(style: .continuous))
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
+                .accessibilityLabel("\(count) stars available")
         }
-        .padding(.top, 4)
-        .presentationDetents([.fraction(0.55)])
-        .presentationDragIndicator(.visible)
     }
+}
 
-    /// "+1", "+0.5" — trim trailing .0 for the whole-number case.
-    private func formatBoost(_ x: Double) -> String {
-        if x == x.rounded() { return "\(Int(x))" }
-        return String(format: "%.1f", x)
+// MARK: - Level badge (KOMO's growing level, rendered on the head side)
+
+private struct LevelBadge: View {
+    var level: Int
+    var progress: Double   // 0..1 toward next level
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Lv \(level)")
+                .font(Theme.Font.label(10, weight: .heavy))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Color(hex: 0x2F6B41).opacity(0.9),
+                            in: Capsule(style: .continuous))
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.3), lineWidth: 1))
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.25))
+                    Capsule()
+                        .fill(Color(hex: 0x93D76E))
+                        .frame(width: max(4, geo.size.width * CGFloat(progress)))
+                        .shadow(color: Color(hex: 0x93D76E).opacity(0.55), radius: 4)
+                }
+            }
+            .frame(width: 34, height: 4)
+        }
+        .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
+        .accessibilityElement()
+        .accessibilityLabel("Level \(level)")
+    }
+}
+
+// MARK: - Shine ring (fires when KOMO is fed a star)
+//
+// A single concentric ring that expands and fades outward from KOMO. Bumping
+// `id` re-triggers the animation. Reduce Motion: renders as a static circle.
+
+private struct ShineRing: View {
+    var id: Int
+    var size: CGFloat
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var t: CGFloat = 0
+
+    var body: some View {
+        Circle()
+            .stroke(Color.white.opacity(reduceMotion ? 0 : (1 - t) * 0.7),
+                    lineWidth: 3)
+            .frame(width: size, height: size)
+            .scaleEffect(1 + t * 0.6)
+            .onChange(of: id) { _, _ in
+                guard !reduceMotion else { return }
+                t = 0
+                withAnimation(.easeOut(duration: 1.1)) { t = 1 }
+            }
     }
 }
 
 // MARK: - Recharge sheet (1-minute breathing)
 
 private struct RechargeSheet: View {
+    var onComplete: () -> Void = {}
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -638,6 +677,7 @@ private struct RechargeSheet: View {
     @State private var caption = "Breathe in…"
     @State private var seconds = 60
     @State private var running = true
+    @State private var didComplete = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -671,6 +711,11 @@ private struct RechargeSheet: View {
 
             Button {
                 running = false
+                // Tapping Done still counts as a completed session.
+                if !didComplete {
+                    didComplete = true
+                    onComplete()
+                }
                 dismiss()
             } label: {
                 Text("Done")
@@ -696,7 +741,14 @@ private struct RechargeSheet: View {
                 try? await Task.sleep(for: .seconds(4))
                 seconds = max(0, seconds - 8)
             }
-            if running { dismiss() }
+            // Timer ran out naturally → grant the star, then dismiss.
+            if running {
+                if !didComplete {
+                    didComplete = true
+                    onComplete()
+                }
+                dismiss()
+            }
         }
     }
 }
@@ -727,14 +779,16 @@ private struct EnergyBreakdownSheet: View {
                     title: "what recharged you",
                     totalText: "+\(formattedInt(breakdown.recoveryTotal))",
                     items: breakdown.recoveryItems,
-                    color: recoveryColor
+                    color: recoveryColor,
+                    emptyLine: "nothing lifting you up right now."
                 )
 
                 factorSection(
                     title: "what drew it down",
                     totalText: signedString(breakdown.loadTotal),
                     items: breakdown.loadItems,
-                    color: loadColor
+                    color: loadColor,
+                    emptyLine: "nothing pulling you down right now."
                 )
 
                 footer
@@ -769,7 +823,9 @@ private struct EnergyBreakdownSheet: View {
                     .foregroundStyle(.primary)
             }
 
-            Text("based on sleep, movement, stress, and calendar load")
+            // Subtitle is provider-owned so it tracks the underlying signal
+            // source (mock / onboarding scorer / real health data).
+            Text(breakdown.subtitle)
                 .font(Theme.Font.body(12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -784,7 +840,8 @@ private struct EnergyBreakdownSheet: View {
         title: String,
         totalText: String,
         items: [EnergyContribution],
-        color: Color
+        color: Color,
+        emptyLine: String
     ) -> some View {
         let maxAbs = items.map { abs($0.points) }.max() ?? 1
 
@@ -795,10 +852,18 @@ private struct EnergyBreakdownSheet: View {
                     .foregroundStyle(.secondary)
                     .tracking(1.2)
                 Spacer()
-                Text(totalText)
+                Text(items.isEmpty ? "" : totalText)
                     .font(Theme.Font.label(14, weight: .heavy))
                     .foregroundStyle(color)
                     .monospacedDigit()
+            }
+
+            if items.isEmpty {
+                Text(emptyLine)
+                    .font(Theme.Font.body(13))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, 2)
             }
 
             VStack(spacing: 10) {
