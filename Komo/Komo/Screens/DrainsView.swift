@@ -41,7 +41,7 @@ struct DrainsView: View {
             }
             .padding(.top, 16)
         }
-        .padding(.horizontal, Theme.Space.screenH)
+        .safeAreaPadding(.horizontal, 20)
         .padding(.top, Theme.Space.screenTop)
         .padding(.bottom, 32)
         .animation(.spring(response: 0.25), value: app.drains)
