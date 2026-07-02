@@ -15,10 +15,14 @@ struct GreetingView: View {
                 .font(Theme.Font.body(16, weight: .medium))
                 .foregroundStyle(.white.opacity(0.82))
 
-            BlobView(size: 200, cute: true, hue: app.dailyHue,
-                     style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                     mood: .float, onTap: { app.go(.main) },
-                     namespace: namespace, geometryID: "companion")
+            // TODO(mascot-rollout): hue/style/eyes/legs and old mood/motion
+            // have no equivalent in the new KomoMascotView API; the manual's
+            // default idle state is used everywhere per stage-2 rollout.
+            KomoMascotView(size: KomoMascotView.standardSize,
+                           onTap: { app.go(.main) },
+                           namespace: namespace,
+                           geometryID: "companion",
+                           accessibilityLabelText: app.companionDisplayName)
                 .padding(.vertical, 6)
 
             Text(app.displayName)

@@ -9,7 +9,8 @@
 import SwiftUI
 
 struct RootView: View {
-    @State private var app = AppState()
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var app = AppState(data: HealthKitDataProvider.shared)
     @Namespace private var blob
 
     /// True quand on est dans le flux principal (post-onboarding).
@@ -90,6 +91,16 @@ struct RootView: View {
         .environment(app)
         .animation(.easeInOut(duration: 0.45), value: app.screen)
         .preferredColorScheme(.light)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background {
+                app.saveNow()
+            }
+        }
+        .onChange(of: app.screen) { _, screen in
+            if screen == .main {
+                app.publishWidgetEnergySnapshot()
+            }
+        }
     }
 
     @ViewBuilder

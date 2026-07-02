@@ -13,16 +13,20 @@ struct LoadingView: View {
 
     private var caption: String {
         let p = app.loadingPct
-        if p < 40 { return "reading your signals…" }
-        if p < 75 { return "looking for patterns…" }
+        if p < 34 { return "saving your answers…" }
+        if p < 68 { return "reading your signals…" }
+        if p < 92 { return "looking for patterns…" }
         return "building your first energy check-in…"
     }
 
     var body: some View {
         VStack(spacing: 36) {
-            BlobView(size: 170, cute: true, hue: app.dailyHue,
-                     style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                     mood: .float, namespace: namespace, geometryID: "companion")
+            // TODO(mascot-rollout): old hue/style/eyes/legs/mood dropped —
+            // the manual defines a single idle motion used everywhere.
+            KomoMascotView(size: KomoMascotView.standardSize,
+                           namespace: namespace,
+                           geometryID: "companion",
+                           accessibilityLabelText: app.companionDisplayName)
 
             VStack(spacing: 16) {
                 Text(caption)
@@ -49,14 +53,7 @@ struct LoadingView: View {
         .padding(.horizontal, 36)
         .padding(.vertical, 80)
         .task {
-            app.loadingPct = 0
-            while app.loadingPct < 100 {
-                try? await Task.sleep(for: .milliseconds(110))
-                if app.screen != .loading { return }
-                app.loadingPct = min(100, app.loadingPct + (3 + Double.random(in: 0..<5)))
-            }
-            try? await Task.sleep(for: .milliseconds(500))
-            if app.screen == .loading { app.go(.main) }
+            await app.completeOnboardingLoad()
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Bringing your companion to life. \(Int(app.loadingPct)) percent.")

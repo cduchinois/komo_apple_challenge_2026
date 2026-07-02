@@ -1,12 +1,10 @@
 //  BlobShape.swift
 //  Komo
 //
-//  The companion's silhouette. The web prototype's "cute" body is a CSS box whose
-//  8-value `border-radius` morphs between four states (komoMochi) — i.e. each
-//  corner is an *ellipse* whose horizontal/vertical radii animate. We reproduce
-//  that faithfully here (smooth rounded jelly, no noise lumps) by interpolating
-//  the four keyframes and drawing per-corner elliptical arcs. `morph` is the loop
-//  phase 0...1 driven by BlobView's TimelineView.
+//  Legacy jelly silhouette kept only as the clip shape for `ChargeFill`
+//  (the Restores screen's liquid-rise hero). The old BlobView that used to
+//  morph this shape is gone; `morph` is now supplied by `ChargeFill` directly.
+//  Original per-corner elliptical-arc morph (komoMochi) preserved verbatim.
 
 import SwiftUI
 

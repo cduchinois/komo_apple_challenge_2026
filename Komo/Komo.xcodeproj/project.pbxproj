@@ -6,12 +6,57 @@
 	objectVersion = 71;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		23A37BBC2FF5B2AD00A71C01 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 23A37BBB2FF5B2AD00A71C01 /* WidgetKit.framework */; };
+		23A37BBE2FF5B2AD00A71C01 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 23A37BBD2FF5B2AD00A71C01 /* SwiftUI.framework */; };
+		23A37BCF2FF5B2AE00A71C01 /* KomoWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 23A37BB92FF5B2AD00A71C01 /* KomoWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		23A37BCD2FF5B2AE00A71C01 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0A1B000000000000000000A1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 23A37BB82FF5B2AD00A71C01;
+			remoteInfo = KomoWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		23A37BD02FF5B2AE00A71C01 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				23A37BCF2FF5B2AE00A71C01 /* KomoWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		0A1B000000000000000000A6 /* Komo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Komo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		23A37BB92FF5B2AD00A71C01 /* KomoWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KomoWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		23A37BBB2FF5B2AD00A71C01 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		23A37BBD2FF5B2AD00A71C01 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		23A37BDC2FF5BE2F00A71C01 /* KomoWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KomoWidgetExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		23A37BD32FF5B2AE00A71C01 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 23A37BB82FF5B2AD00A71C01 /* KomoWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0A1B000000000000000000A4 /* Komo */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Komo; sourceTree = "<group>"; };
+		23A37BBF2FF5B2AD00A71C01 /* KomoWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (23A37BD32FF5B2AE00A71C01 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = KomoWidget; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -22,13 +67,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		23A37BB62FF5B2AD00A71C01 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				23A37BBE2FF5B2AD00A71C01 /* SwiftUI.framework in Frameworks */,
+				23A37BBC2FF5B2AD00A71C01 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		0A1B000000000000000000A2 = {
 			isa = PBXGroup;
 			children = (
+				23A37BDC2FF5BE2F00A71C01 /* KomoWidgetExtension.entitlements */,
 				0A1B000000000000000000A4 /* Komo */,
+				23A37BBF2FF5B2AD00A71C01 /* KomoWidget */,
+				23A37BBA2FF5B2AD00A71C01 /* Frameworks */,
 				0A1B000000000000000000A3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -37,8 +94,18 @@
 			isa = PBXGroup;
 			children = (
 				0A1B000000000000000000A6 /* Komo.app */,
+				23A37BB92FF5B2AD00A71C01 /* KomoWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		23A37BBA2FF5B2AD00A71C01 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				23A37BBB2FF5B2AD00A71C01 /* WidgetKit.framework */,
+				23A37BBD2FF5B2AD00A71C01 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -51,10 +118,12 @@
 				0A1B000000000000000000A7 /* Sources */,
 				0A1B000000000000000000A8 /* Frameworks */,
 				0A1B000000000000000000A9 /* Resources */,
+				23A37BD02FF5B2AE00A71C01 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				23A37BCE2FF5B2AE00A71C01 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				0A1B000000000000000000A4 /* Komo */,
@@ -64,6 +133,28 @@
 			productReference = 0A1B000000000000000000A6 /* Komo.app */;
 			productType = "com.apple.product-type.application";
 		};
+		23A37BB82FF5B2AD00A71C01 /* KomoWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 23A37BD42FF5B2AE00A71C01 /* Build configuration list for PBXNativeTarget "KomoWidgetExtension" */;
+			buildPhases = (
+				23A37BB52FF5B2AD00A71C01 /* Sources */,
+				23A37BB62FF5B2AD00A71C01 /* Frameworks */,
+				23A37BB72FF5B2AD00A71C01 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				23A37BBF2FF5B2AD00A71C01 /* KomoWidget */,
+			);
+			name = KomoWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = KomoWidgetExtension;
+			productReference = 23A37BB92FF5B2AD00A71C01 /* KomoWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -71,11 +162,14 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2600;
+				LastSwiftUpdateCheck = 2700;
 				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					0A1B000000000000000000A5 = {
 						CreatedOnToolsVersion = 26.0;
+					};
+					23A37BB82FF5B2AD00A71C01 = {
+						CreatedOnToolsVersion = 27.0;
 					};
 				};
 			};
@@ -94,12 +188,20 @@
 			projectRoot = "";
 			targets = (
 				0A1B000000000000000000A5 /* Komo */,
+				23A37BB82FF5B2AD00A71C01 /* KomoWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		0A1B000000000000000000A9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		23A37BB72FF5B2AD00A71C01 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -116,7 +218,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		23A37BB52FF5B2AD00A71C01 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		23A37BCE2FF5B2AE00A71C01 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 23A37BB82FF5B2AD00A71C01 /* KomoWidgetExtension */;
+			targetProxy = 23A37BCD2FF5B2AE00A71C01 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		0A1B000000000000000000B3 /* Debug */ = {
@@ -235,10 +352,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Komo/Komo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8M84J7ZXS8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Komo needs full access to your calendar to count your meetings and understand your cognitive load.";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "Komo reads your calendar to understand your daily load and suggest better recovery windows.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Cette app a besoin d'accéder à vos données de santé pour analyser votre activité.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Cette app a besoin d'écrire des données de santé pour les besoins de test.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -250,7 +373,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.komo1.companion;
+				PRODUCT_BUNDLE_IDENTIFIER = com.komo4.companion;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -263,10 +386,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Komo/Komo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8M84J7ZXS8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Komo needs full access to your calendar to count your meetings and understand your cognitive load.";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "Komo reads your calendar to understand your daily load and suggest better recovery windows.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Cette app a besoin d'accéder à vos données de santé pour analyser votre activité.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Cette app a besoin d'écrire des données de santé pour les besoins de test.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -278,11 +407,93 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.komo1.companion;
+				PRODUCT_BUNDLE_IDENTIFIER = com.komo4.companion;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		23A37BD12FF5B2AE00A71C01 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CODE_SIGN_ENTITLEMENTS = KomoWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8M84J7ZXS8;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = KomoWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = KomoWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.komo4.companion.KomoWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		23A37BD22FF5B2AE00A71C01 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CODE_SIGN_ENTITLEMENTS = KomoWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8M84J7ZXS8;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = KomoWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = KomoWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.komo4.companion.KomoWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -303,6 +514,15 @@
 			buildConfigurations = (
 				0A1B000000000000000000B5 /* Debug */,
 				0A1B000000000000000000B6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		23A37BD42FF5B2AE00A71C01 /* Build configuration list for PBXNativeTarget "KomoWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				23A37BD12FF5B2AE00A71C01 /* Debug */,
+				23A37BD22FF5B2AE00A71C01 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

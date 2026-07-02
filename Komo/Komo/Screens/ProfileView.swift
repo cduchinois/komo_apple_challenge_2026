@@ -12,6 +12,11 @@ struct ProfileView: View {
     @Environment(AppState.self) private var app
     var namespace: Namespace.ID
 
+#if DEBUG
+    @State private var isInjectingDebugData = false
+    @State private var debugInjectionMessage: String?
+#endif
+
     /// Existing companion-customization rows (World, Companion, Look, …).
     private var companionRows: [(String, String)] {
         [
@@ -43,10 +48,13 @@ struct ProfileView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                BlobView(size: 132, cute: true, hue: app.dailyHue,
-                         style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                         motion: app.character.motion,
-                         namespace: namespace, geometryID: "companion")
+                // TODO(mascot-rollout): character.motion / hue / style / eyes /
+                // legs have no equivalent in KomoMascotView; manual's default
+                // idle is used. Customize screen still stores these preferences.
+                KomoMascotView(size: KomoMascotView.standardSize,
+                               namespace: namespace,
+                               geometryID: "companion",
+                               accessibilityLabelText: app.companionDisplayName)
                     .padding(.vertical, 4)
 
                 Text(app.companionDisplayName)
@@ -85,12 +93,68 @@ struct ProfileView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 4)
+
+#if DEBUG
+                sectionHeader("Debug")
+                Button { injectDebugData() } label: {
+                    HStack(spacing: 10) {
+                        if isInjectingDebugData {
+                            ProgressView()
+                                .tint(Theme.Palette.ink)
+                        }
+                        Text(isInjectingDebugData ? "Injecting test data..." : "Refresh test Health + Calendar data")
+                            .font(Theme.Font.label(15))
+                            .foregroundStyle(Theme.Palette.ink)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(Color.white.opacity(0.96), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+                    .shadow(color: .black.opacity(0.18), radius: 10, y: 6)
+                }
+                .buttonStyle(.plain)
+                .disabled(isInjectingDebugData)
+#endif
             }
             .padding(.horizontal, Theme.Space.screenH)
             .padding(.top, Theme.Space.screenTop)
             .padding(.bottom, 44)
         }
+#if DEBUG
+        .alert("Debug data", isPresented: debugInjectionAlertBinding) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(debugInjectionMessage ?? "")
+        }
+#endif
     }
+
+#if DEBUG
+    private var debugInjectionAlertBinding: Binding<Bool> {
+        Binding(
+            get: { debugInjectionMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    debugInjectionMessage = nil
+                }
+            }
+        )
+    }
+
+    private func injectDebugData() {
+        isInjectingDebugData = true
+        Task { @MainActor in
+            do {
+                let result = try await DebugTestDataInjector.shared.resetAndInject()
+                await HealthKitDataProvider.shared.loadToday()
+                app.publishWidgetEnergySnapshot()
+                debugInjectionMessage = result.message
+            } catch {
+                debugInjectionMessage = "Injection impossible: \(error.localizedDescription)"
+            }
+            isInjectingDebugData = false
+        }
+    }
+#endif
 
     // MARK: - Helpers
 

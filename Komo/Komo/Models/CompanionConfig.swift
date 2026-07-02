@@ -36,7 +36,7 @@ struct CompanionCharacter: Identifiable, Hashable {
 
 // MARK: - Surface style
 
-enum BlobStyle: String, CaseIterable, Identifiable {
+enum BlobStyle: String, Codable, CaseIterable, Identifiable {
     case aurora, glossy, clay, fuse
     var id: String { rawValue }
 
@@ -61,7 +61,7 @@ enum BlobStyle: String, CaseIterable, Identifiable {
 
 // MARK: - Eyes
 
-enum EyeStyle: String, CaseIterable, Identifiable {
+enum EyeStyle: String, Codable, CaseIterable, Identifiable {
     case cartoon, happy, cool, spark
     var id: String { rawValue }
     var name: String { rawValue.capitalized }
@@ -69,7 +69,7 @@ enum EyeStyle: String, CaseIterable, Identifiable {
 
 // MARK: - Legs
 
-enum LegStyle: String, CaseIterable, Identifiable {
+enum LegStyle: String, Codable, CaseIterable, Identifiable {
     case none, stubs, wiggly, wheels
     var id: String { rawValue }
     var name: String {

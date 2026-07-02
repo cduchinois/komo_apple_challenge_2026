@@ -6,11 +6,13 @@
 
 import SwiftUI
 import Observation
+import WidgetKit
+import SwiftData
 
 /// Every distinct screen in the prototype flow.
 /// Onboarding order: splash → intro(hook) → energy → now → restores → drains →
 /// signals → loading → main.
-enum KomoScreen: Equatable {
+enum KomoScreen: String, Codable, Equatable {
     case splash
     case intro          // hook: typewriter greeting + "let's go"
     case energy         // Q1 — when do you feel most switched on?
@@ -71,14 +73,14 @@ enum EnergyLevel {
 // The Reflect action serves one Reflection card at a time. The old 10-item
 // Insight pool is fully removed — this Reflection pool is the single truth.
 
-enum ReflectionType: String, Equatable {
+enum ReflectionType: String, Codable, Equatable {
     case add       // sits on the calendar
     case reflect   // an observation, no active step
     case remind    // a nudge to schedule
     case start     // an immediate move
 }
 
-enum ReflectionAction: String, Identifiable, Equatable, CaseIterable {
+enum ReflectionAction: String, Identifiable, Codable, Equatable, CaseIterable {
     case addToCalendar
     case save
     case writeNote
@@ -139,8 +141,8 @@ struct Reflection: Identifiable, Equatable {
 
 // MARK: - Saved insight / Todo item (Cards tab feeds)
 
-struct SavedInsight: Identifiable, Equatable {
-    let id = UUID()
+struct SavedInsight: Identifiable, Codable, Equatable {
+    var id = UUID()
     let reflectionID: UUID
     let observation: String
     let suggestion: String
@@ -148,13 +150,13 @@ struct SavedInsight: Identifiable, Equatable {
     let savedAt: Date
 }
 
-enum TodoKind: String, Equatable {
+enum TodoKind: String, Codable, Equatable {
     case reminder  // from Remind me
     case calendar  // from Add to calendar
 }
 
-struct TodoItem: Identifiable, Equatable {
-    let id = UUID()
+struct TodoItem: Identifiable, Codable, Equatable {
+    var id = UUID()
     let reflectionID: UUID
     let text: String
     let kind: TodoKind
@@ -164,8 +166,8 @@ struct TodoItem: Identifiable, Equatable {
 
 // MARK: - Snack (mutable stock)
 
-struct Snack: Identifiable, Equatable {
-    let id = UUID()
+struct Snack: Identifiable, Codable, Equatable {
+    var id = UUID()
     let name: String
     let icon: String            // emoji
     let energyBoost: Double     // points added to energy hero
@@ -174,7 +176,7 @@ struct Snack: Identifiable, Equatable {
 
 /// On-device signal permissions toggled on the Signals screen.
 /// Card order matches the prototype: health, calendar, screen, notify.
-struct SignalAuth: Equatable {
+struct SignalAuth: Codable, Equatable {
     var health = false
     var calendar = false
     var screen = false
@@ -184,6 +186,7 @@ struct SignalAuth: Equatable {
     var allOn: Bool { health && calendar && screen && notify }
 }
 
+@MainActor
 @Observable
 final class AppState {
 
@@ -191,48 +194,169 @@ final class AppState {
     let data: EnergyDataProviding
 
     // MARK: Navigation
-    var screen: KomoScreen = .splash
-    var returning = false
+    var screen: KomoScreen = .splash { didSet { persistAfterChange() } }
+    var returning = false { didSet { persistAfterChange() } }
 
     // MARK: Onboarding answers
-    var userName: String = ""
-    var energyType: String? = nil     // Q1 — peak time of day
-    var energyNow: String? = nil      // Q2 — energy right now
-    var restores: [String] = []       // Q3 — what recharges (multi)
-    var drains: [String] = []         // Q4 — what drains (multi)
-    var auth = SignalAuth()           // on-device signal permissions
+    var userName: String = "" { didSet { persistAfterChange() } }
+    var energyType: String? = nil { didSet { persistAfterChange() } }     // Q1 — peak time of day
+    var energyNow: String? = nil { didSet { persistAfterChange() } }      // Q2 — energy right now
+    var restores: [String] = [] { didSet { persistAfterChange() } }       // Q3 — what recharges (multi)
+    var drains: [String] = [] { didSet { persistAfterChange() } }         // Q4 — what drains (multi)
+    var auth = SignalAuth() { didSet { persistAfterChange() } }           // on-device signal permissions
 
     // MARK: Companion configuration
-    var characterIndex = 1            // default: Moku (calm)
-    var companionName = ""
-    var blobStyle: BlobStyle = .glossy
-    var eyes: EyeStyle = .cartoon
-    var legs: LegStyle = .stubs
-    var tone: CompanionTone = CompanionTone.all[0]
-    var worldIndex = 0
+    var characterIndex = 1 { didSet { persistAfterChange() } }            // default: Moku (calm)
+    var companionName = "" { didSet { persistAfterChange() } }
+    var blobStyle: BlobStyle = .glossy { didSet { persistAfterChange() } }
+    var eyes: EyeStyle = .cartoon { didSet { persistAfterChange() } }
+    var legs: LegStyle = .stubs { didSet { persistAfterChange() } }
+    var tone: CompanionTone = CompanionTone.all[0] { didSet { persistAfterChange() } }
+    var worldIndex = 0 { didSet { persistAfterChange() } }
     /// Daily energy hue that tints the whole creature (150 = green in the source).
-    var dailyHue: Double = 150
+    var dailyHue: Double = 150 { didSet { persistAfterChange() } }
 
     // MARK: Transient UI state
-    var loadingPct: Double = 0
-    var reminderAdded = false
+    var loadingPct: Double = 0 { didSet { persistAfterChange() } }
+    var reminderAdded = false { didSet { persistAfterChange() } }
 
     // MARK: Home state — Reflect
     /// Cursor into `Self.reflectionPool`. Cycles without immediate repeats.
-    var reflectionIndex: Int = 0
+    var reflectionIndex: Int = 0 { didSet { persistAfterChange() } }
 
     // MARK: Home state — Feed
     /// Points added to today's baseline energy by feeding. Capped at +30.
-    var energyBoost: Double = 0
+    var energyBoost: Double = 0 { didSet { persistAfterChange() } }
     /// Mutable snack inventory (stock decreases as the user feeds).
-    var snacks: [Snack] = AppState.initialSnacks
+    var snacks: [Snack] = AppState.initialSnacks { didSet { persistAfterChange() } }
 
     // MARK: Cards tab feeds
-    var savedInsights: [SavedInsight] = []
-    var todos: [TodoItem] = []
+    var savedInsights: [SavedInsight] = [] { didSet { persistAfterChange() } }
+    var todos: [TodoItem] = [] { didSet { persistAfterChange() } }
+
+    @ObservationIgnored private var isRestoringPersistedState = false
+    @ObservationIgnored private let persistenceStore = AppStatePersistenceStore()
 
     init(data: EnergyDataProviding = MockDataProvider()) {
         self.data = data
+        restorePersistedState()
+    }
+
+    // MARK: Persistence
+
+    func saveNow() {
+        guard !isRestoringPersistedState else { return }
+        persistenceStore.save(snapshotForPersistence())
+    }
+
+    private func persistAfterChange() {
+        guard !isRestoringPersistedState else { return }
+        saveNow()
+    }
+
+    private func restorePersistedState() {
+        guard let persisted = persistenceStore.load() else { return }
+        isRestoringPersistedState = true
+        apply(persisted)
+        isRestoringPersistedState = false
+    }
+
+    private func snapshotForPersistence() -> PersistedAppState {
+        PersistedAppState(
+            screen: screen,
+            returning: returning,
+            userName: userName,
+            energyType: energyType,
+            energyNow: energyNow,
+            restores: restores,
+            drains: drains,
+            auth: auth,
+            characterIndex: characterIndex,
+            companionName: companionName,
+            blobStyle: blobStyle,
+            eyes: eyes,
+            legs: legs,
+            toneID: tone.id,
+            worldIndex: worldIndex,
+            dailyHue: dailyHue,
+            loadingPct: loadingPct,
+            reminderAdded: reminderAdded,
+            reflectionIndex: reflectionIndex,
+            energyBoost: energyBoost,
+            snacks: snacks,
+            savedInsights: savedInsights,
+            todos: todos
+        )
+    }
+
+    private func apply(_ persisted: PersistedAppState) {
+        screen = persisted.screen
+        returning = persisted.returning
+        userName = persisted.userName
+        energyType = persisted.energyType
+        energyNow = persisted.energyNow
+        restores = persisted.restores
+        drains = persisted.drains
+        auth = persisted.auth
+        characterIndex = CompanionCharacter.all.indices.contains(persisted.characterIndex) ? persisted.characterIndex : 1
+        companionName = persisted.companionName
+        blobStyle = persisted.blobStyle
+        eyes = persisted.eyes
+        legs = persisted.legs
+        tone = CompanionTone.all.first { $0.id == persisted.toneID } ?? CompanionTone.all[0]
+        worldIndex = CompanionWorld.all.contains { $0.id == persisted.worldIndex } ? persisted.worldIndex : 0
+        dailyHue = persisted.dailyHue
+        loadingPct = persisted.loadingPct
+        reminderAdded = persisted.reminderAdded
+        reflectionIndex = max(0, persisted.reflectionIndex)
+        energyBoost = min(30, max(0, persisted.energyBoost))
+        snacks = persisted.snacks.isEmpty ? Self.initialSnacks : persisted.snacks
+        savedInsights = persisted.savedInsights
+        todos = persisted.todos
+    }
+
+    private func persistCurrentEnergyCheckIn() {
+        persistenceStore.saveEnergyCheckIn(
+            snapshot: data.currentSnapshot(),
+            energyType: energyType,
+            energyNow: energyNow,
+            restores: restores,
+            drains: drains
+        )
+    }
+
+    @MainActor
+    func completeOnboardingLoad() async {
+        guard screen == .loading else { return }
+
+        loadingPct = max(loadingPct, 12)
+        saveNow()
+        try? await Task.sleep(for: .milliseconds(180))
+
+        loadingPct = max(loadingPct, 34)
+        if auth.health || auth.calendar {
+            await HealthKitDataProvider.shared.requestPermissions()
+        }
+        saveNow()
+        try? await Task.sleep(for: .milliseconds(180))
+
+        loadingPct = max(loadingPct, 68)
+        if auth.health || auth.calendar {
+            await HealthKitDataProvider.shared.loadToday()
+        }
+        saveNow()
+        try? await Task.sleep(for: .milliseconds(180))
+
+        loadingPct = max(loadingPct, 92)
+        publishWidgetEnergySnapshot()
+        persistCurrentEnergyCheckIn()
+        saveNow()
+        try? await Task.sleep(for: .milliseconds(250))
+
+        returning = true
+        loadingPct = 100
+        go(.main)
+        saveNow()
     }
 
     // MARK: Static demo content
@@ -455,8 +579,12 @@ final class AppState {
     // MARK: Home-screen state derivations
 
     /// The reflection currently displayed on the home speech card.
+    /// Prefers data-personalized cards from the backend; falls back to the
+    /// static pool so the card is never empty.
     var currentReflection: Reflection {
-        Self.reflectionPool[reflectionIndex % Self.reflectionPool.count]
+        let personalized = data.personalizedReflections()
+        let pool = personalized.isEmpty ? Self.reflectionPool : personalized
+        return pool[reflectionIndex % pool.count]
     }
 
     /// Energy percent shown on the home hero (baseline + snacks fed today).
@@ -470,11 +598,27 @@ final class AppState {
         EnergyLevel.from(percent: homeEnergyPercent)
     }
 
+    /// Publish the exact Home energy value into the App Group so WidgetKit can
+    /// render the same score outside the app process.
+    func publishWidgetEnergySnapshot() {
+        let snapshot = data.currentSnapshot()
+        WidgetEnergySnapshot.save(WidgetEnergySnapshot(
+            percent: homeEnergyPercent,
+            word: homeEnergyLevel.word,
+            rechargedBy: snapshot.rechargedBy,
+            usedBy: snapshot.usedBy,
+            updatedAt: Date()
+        ))
+        WidgetCenter.shared.reloadTimelines(ofKind: "KomoEnergyWidget")
+    }
+
     // MARK: Reflect — cycle through the pool
 
     /// Advance to the next Reflection (non-repeating).
     func advanceReflection() {
-        reflectionIndex = (reflectionIndex + 1) % Self.reflectionPool.count
+        let personalized = data.personalizedReflections()
+        let pool = personalized.isEmpty ? Self.reflectionPool : personalized
+        reflectionIndex = (reflectionIndex + 1) % pool.count
     }
 
     // MARK: Reflect — action handlers (per-card buttons)
@@ -560,5 +704,105 @@ final class AppState {
 
     func addReminder() {
         reminderAdded = true
+    }
+}
+
+private struct PersistedAppState: Codable {
+    var version: Int = 1
+    var screen: KomoScreen
+    var returning: Bool
+    var userName: String
+    var energyType: String?
+    var energyNow: String?
+    var restores: [String]
+    var drains: [String]
+    var auth: SignalAuth
+    var characterIndex: Int
+    var companionName: String
+    var blobStyle: BlobStyle
+    var eyes: EyeStyle
+    var legs: LegStyle
+    var toneID: String
+    var worldIndex: Int
+    var dailyHue: Double
+    var loadingPct: Double
+    var reminderAdded: Bool
+    var reflectionIndex: Int
+    var energyBoost: Double
+    var snacks: [Snack]
+    var savedInsights: [SavedInsight]
+    var todos: [TodoItem]
+}
+
+@MainActor
+private struct AppStatePersistenceStore {
+    private let appStateKey = "primary"
+
+    func load() -> PersistedAppState? {
+        do {
+            var descriptor = FetchDescriptor<AppStateRecord>(
+                predicate: #Predicate { $0.key == appStateKey }
+            )
+            descriptor.fetchLimit = 1
+            guard let record = try KomoSwiftDataStore.context.fetch(descriptor).first else {
+                return nil
+            }
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(PersistedAppState.self, from: record.payload)
+        } catch {
+            print("Failed to load AppState from SwiftData: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    func save(_ state: PersistedAppState) {
+        do {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let payload = try encoder.encode(state)
+
+            var descriptor = FetchDescriptor<AppStateRecord>(
+                predicate: #Predicate { $0.key == appStateKey }
+            )
+            descriptor.fetchLimit = 1
+            let context = KomoSwiftDataStore.context
+            if let record = try context.fetch(descriptor).first {
+                record.payload = payload
+                record.updatedAt = Date()
+            } else {
+                context.insert(AppStateRecord(key: appStateKey, payload: payload))
+            }
+            try context.save()
+        } catch {
+            print("Failed to persist AppState with SwiftData: \(error.localizedDescription)")
+        }
+    }
+
+    func saveEnergyCheckIn(
+        snapshot: EnergySnapshot,
+        energyType: String?,
+        energyNow: String?,
+        restores: [String],
+        drains: [String]
+    ) {
+        do {
+            let context = KomoSwiftDataStore.context
+            context.insert(EnergyCheckInRecord(
+                percent: snapshot.percent,
+                word: snapshot.word,
+                rechargedBy: snapshot.rechargedBy,
+                usedBy: snapshot.usedBy,
+                headlineInsight: snapshot.headlineInsight,
+                energyType: energyType,
+                energyNow: energyNow,
+                restores: restores,
+                drains: drains
+            ))
+            try context.save()
+        } catch {
+            print("Failed to persist energy check-in with SwiftData: \(error.localizedDescription)")
+        }
     }
 }

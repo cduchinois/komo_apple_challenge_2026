@@ -24,9 +24,12 @@ struct NowView: View {
 
             QuestionTitle(text: "how’s your energy\nright now?")
 
-            BlobView(size: 128, cute: true, hue: app.dailyHue,
-                     style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                     mood: .listen, namespace: namespace, geometryID: "companion")
+            // TODO(mascot-rollout): "listen" mood + hue/style/eyes/legs
+            // dropped — manual's default idle is used everywhere.
+            KomoMascotView(size: KomoMascotView.standardSize,
+                           namespace: namespace,
+                           geometryID: "companion",
+                           accessibilityLabelText: app.companionDisplayName)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             VStack(spacing: Theme.Space.optionGap) {

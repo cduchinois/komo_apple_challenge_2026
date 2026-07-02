@@ -20,6 +20,15 @@ protocol EnergyDataProviding {
     /// Per-factor breakdown of today's energy score (recovery + load items),
     /// shown when the user taps the (i) beside the energy word on Home.
     func energyBreakdown() -> EnergyBreakdown
+    /// Data-personalized reflection cards for the home speech bubble.
+    /// Returns [] if no data is available — AppState falls back to static pool.
+    func personalizedReflections() -> [Reflection]
+}
+
+/// Default no-op — MockDataProvider and any future provider that doesn't
+/// implement personalizedReflections() returns the static pool via AppState.
+extension EnergyDataProviding {
+    func personalizedReflections() -> [Reflection] { [] }
 }
 
 /// Static, on-device sample data mirroring the prototype exactly.

@@ -21,12 +21,16 @@ struct CustomizeView: View {
                     Spacer()
                 }
 
-                BlobView(size: 150, cute: true, hue: app.dailyHue,
-                         style: app.blobStyle, eyes: app.eyes, legs: app.legs,
-                         motion: app.character.motion,
-                         mood: .float, namespace: namespace, geometryID: "companion")
+                // TODO(mascot-rollout): the new KomoMascotView doesn't yet
+                // consume style/eyes/legs/motion — the customization rows
+                // below still change AppState (for future re-wiring) but the
+                // preview always renders the manual's default look.
+                KomoMascotView(size: KomoMascotView.standardSize,
+                               namespace: namespace,
+                               geometryID: "companion",
+                               accessibilityLabelText: app.companionDisplayName)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 180)
+                    .frame(height: KomoMascotView.standardSize)
 
                 section("NAME") {
                     TextField("", text: Binding(get: { app.companionName }, set: { app.companionName = $0 }),
