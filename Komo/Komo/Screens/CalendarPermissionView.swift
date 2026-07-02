@@ -24,21 +24,17 @@ struct CalendarPermissionView: View {
     /// matching drain wins.
     private var openingLine: String {
         for drain in app.drains {
-            switch drain {
-            case "meetings":     return "meetings drain you."
-            case "intense work": return "heavy workload drains you."
-            case "social plans": return "social plans drain you."
-            default: continue
+            if ["meetings", "intense work", "social plans"].contains(drain) {
+                return L10n.calendarPermissionOpening(for: drain)
             }
         }
-        // Fallback (shouldn't hit — screen only shown when a match exists).
-        return "your calendar drains you."
+        return L10n.calendarPermissionOpening(for: "")
     }
 
     private var lines: [String] {
         [
             openingLine,
-            "if i can peek at your calendar, i'll see the heavy days coming."
+            String(localized: "if i can peek at your calendar, i'll see the heavy days coming.")
         ]
     }
 
@@ -95,9 +91,9 @@ struct CalendarPermissionView: View {
             .buttonStyle(.plain)
             .padding(.top, 4)
         }
-        .padding(.horizontal, Theme.Space.screenH)
         .padding(.top, Theme.Space.screenTop)
         .padding(.bottom, 24)
+        .safeAreaPadding(.horizontal, 40)
         .task {
             revealed = true
         }

@@ -11,7 +11,7 @@ struct NowView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var namespace: Namespace.ID
 
-    private let options = ["strong", "okay", "low", "running on fumes"]
+    private let options = OnboardingOptions.energyNow
 
     /// Local echo of the chosen option so the row can flash its selected state
     /// briefly before the screen advances.
@@ -34,7 +34,7 @@ struct NowView: View {
 
             VStack(spacing: Theme.Space.optionGap) {
                 ForEach(options, id: \.self) { opt in
-                    OptionRow(label: opt, selected: picked == opt) {
+                    OptionRow(labelKey: opt, selected: picked == opt) {
                         pick(opt)
                     }
                 }
@@ -43,7 +43,7 @@ struct NowView: View {
             .disabled(picked != nil)
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, Theme.Space.screenH)
+        .safeAreaPadding(.horizontal, 40)
         .padding(.top, Theme.Space.screenTop)
         .padding(.bottom, 32)
     }

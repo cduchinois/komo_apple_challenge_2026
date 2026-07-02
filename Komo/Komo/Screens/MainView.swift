@@ -17,6 +17,7 @@ import SwiftUI
 
 struct MainView: View {
     @Environment(AppState.self) private var app
+    @Environment(PermissionsManager.self) private var permissions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var namespace: Namespace.ID
 
@@ -35,6 +36,7 @@ struct MainView: View {
     @State private var focusDurationSeconds: Int = 180
     // Toast for brief confirmations after reflection actions.
     @State private var toast: String? = nil
+    @State private var didPromptNotifications = false
 
     private var snapshot: EnergySnapshot { app.data.currentSnapshot() }
 
@@ -63,10 +65,11 @@ struct MainView: View {
         .padding(.top, 8)   // sits just below the safe-area inset
         .overlay(alignment: .top) { toastOverlay }
         .sheet(isPresented: $showRecharge) {
-            RechargeSheet {
+            RechargeSheet { completed in
+                guard completed else { return }
                 // Recharge completion → +1 star.
                 app.earnStar()
-                flashToast("Recharge complete · ★ +1")
+                flashToast(String(localized: "Recharge complete · ★ +1"))
             }
         }
         .sheet(isPresented: $showEnergyInfo) {
@@ -77,7 +80,7 @@ struct MainView: View {
                            suggestion: app.currentReflection.suggestion) { note in
                 app.saveCurrentReflection(note: note)
                 showNoteSheet = false
-                flashToast("Note saved")
+                flashToast(String(localized: "Note saved"))
                 app.advanceReflection()
             }
         }
@@ -87,20 +90,31 @@ struct MainView: View {
                 // Focus completion → blob love + +1 star + advance.
                 blobReact()
                 app.earnStar()
-                flashToast("Session complete · ★ +1")
+                flashToast(String(localized: "Session complete · ★ +1"))
                 app.advanceReflection()
             }
         }
-        .onAppear {
+        .task {
             app.publishWidgetEnergySnapshot()
+            await promptNotificationsAfterOnboarding()
         }
+    }
+
+    /// Ask for notification permission once the user reaches Home — never during onboarding.
+    private func promptNotificationsAfterOnboarding() async {
+        guard !didPromptNotifications else { return }
+        guard permissions.notifications == .notDetermined else { return }
+        didPromptNotifications = true
+        // Brief pause so the blob screen renders before the system sheet.
+        try? await Task.sleep(for: .milliseconds(700))
+        await permissions.requestNotifications()
     }
 
     // MARK: 1. Header
 
     private var header: some View {
         // TODO: wire real daysTogether from persisted onboarding date.
-        Text("Day 1 with KOMO")
+        Text("Day 1 with KOMO", comment: "Home header showing days with KOMO")
             .font(Theme.Font.title(20))
             .foregroundStyle(Theme.Palette.inkForest)
             .shadow(color: .white.opacity(0.55), radius: 12, y: 1)
@@ -112,10 +126,12 @@ struct MainView: View {
     private var insightCard: some View {
         let r = app.currentReflection
         // Second block label softens when the card is a pure observation.
-        let secondLabel: String = (r.type == .reflect) ? "A gentle note" : "Quick win"
+        let secondLabel: String = (r.type == .reflect)
+            ? String(localized: "A gentle note")
+            : String(localized: "Quick win")
         return VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("✨ Insight")
+                Text("✨ Insight", comment: "Insight card section title")
                     .font(Theme.Font.label(12, weight: .bold))
                     .foregroundStyle(Theme.Palette.leaf)
                 Text(r.observation)
@@ -189,22 +205,22 @@ struct MainView: View {
         switch action {
         case .addToCalendar:
             app.addCurrentReflectionToCalendar()
-            flashToast("Added to calendar")
+            flashToast(String(localized: "Added to calendar"))
         case .save:
             app.saveCurrentReflection(note: nil)
-            flashToast("Saved to Cards")
+            flashToast(String(localized: "Saved to Cards"))
         case .writeNote:
             showNoteSheet = true
         case .remindMe:
             app.remindCurrentReflection()
-            flashToast("Added to reminders")
+            flashToast(String(localized: "Added to reminders"))
             scheduleReminderReset()
         case .startNow:
             focusDurationSeconds = r.suggestedDurationSeconds
             showFocusTimer = true
         case .done:
             app.markCurrentDone()
-            flashToast("Nice")
+            flashToast(String(localized: "Nice"))
         case .next:
             withAnimation(.spring(response: 0.35)) { app.advanceReflection() }
         }
@@ -267,7 +283,7 @@ struct MainView: View {
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 14) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("TODAY'S ENERGY")
+                    Text("TODAY'S ENERGY", comment: "Energy hero section label")
                         .font(Theme.Font.label(11, weight: .heavy))
                         .foregroundStyle(.white.opacity(0.9))
                         .shadow(color: .black.opacity(0.28), radius: 6, y: 1)
@@ -287,7 +303,7 @@ struct MainView: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Why \(percent) percent")
+                        .accessibilityLabel(String(format: String(localized: "Why %lld percent"), percent))
                     }
                 }
                 Spacer()
@@ -323,7 +339,7 @@ struct MainView: View {
         }
         .padding(.horizontal, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Today's energy: \(level.word), \(percent) percent.")
+        .accessibilityLabel(String(format: String(localized: "Today's energy: %1$@, %2$lld percent."), level.word, percent))
     }
 
     // MARK: 5. Action area — Reflect / Feed (center) / Recharge in an arc
@@ -435,7 +451,7 @@ struct MainView: View {
         if app.starBalance > 0 {
             feedWithStar()
         } else {
-            flashToast("Recharge to earn stars for KOMO")
+            flashToast(String(localized: "Recharge to earn stars for KOMO"))
         }
     }
 
@@ -475,7 +491,7 @@ struct MainView: View {
 // (Text) — needed for Feed since SF Symbols has no whole-apple-fruit glyph.
 
 private struct ActionButton<Icon: View>: View {
-    var title: String
+    var title: LocalizedStringKey
     var action: () -> Void
     @ViewBuilder var icon: () -> Icon
 
@@ -668,25 +684,35 @@ private struct ShineRing: View {
 // MARK: - Recharge sheet (1-minute breathing)
 
 private struct RechargeSheet: View {
-    var onComplete: () -> Void = {}
+    var onComplete: (_ completed: Bool) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var expanded = false
-    @State private var caption = "Breathe in…"
+    @State private var caption = String(localized: "Breathe in…")
     @State private var seconds = 60
     @State private var running = true
     @State private var didComplete = false
+
+    private func updateBreathingPhase(elapsed: Int) {
+        if elapsed % 8 < 4 {
+            caption = String(localized: "Breathe in…")
+            expanded = true
+        } else {
+            caption = String(localized: "Breathe out…")
+            expanded = false
+        }
+    }
 
     var body: some View {
         VStack(spacing: 24) {
             Capsule().fill(.secondary.opacity(0.4)).frame(width: 40, height: 4).padding(.top, 8)
 
             VStack(spacing: 4) {
-                Text("1-minute breath")
+                Text("1-minute breath", comment: "Recharge sheet title")
                     .font(Theme.Font.title(20))
-                Text("A quiet minute. KOMO breathes with you.")
+                Text("A quiet minute. KOMO breathes with you.", comment: "Recharge sheet subtitle")
                     .font(Theme.Font.body(13))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -705,50 +731,56 @@ private struct RechargeSheet: View {
                     .foregroundStyle(.primary)
             }
 
-            Text("\(seconds)s")
+            Text(String(format: String(localized: "%llds"), seconds))
                 .font(Theme.Font.title(24))
                 .foregroundStyle(.secondary)
+                .monospacedDigit()
 
             Button {
+                guard seconds == 0 else { return }
                 running = false
-                // Tapping Done still counts as a completed session.
                 if !didComplete {
                     didComplete = true
-                    onComplete()
+                    onComplete(true)
                 }
                 dismiss()
             } label: {
-                Text("Done")
+                Text("Done", comment: "Recharge sheet done button")
                     .font(Theme.Font.label(16, weight: .semibold))
                     .frame(maxWidth: .infinity)
                     .frame(height: 48)
             }
             .buttonStyle(.borderedProminent)
+            .disabled(seconds > 0)
             .padding(.horizontal, 24)
 
             Spacer(minLength: 8)
         }
         .padding(.bottom, 24)
         .presentationDetents([.medium, .large])
+        .onDisappear {
+            running = false
+        }
         .task {
-            while running && seconds > 0 {
-                caption = "Breathe in…"
-                expanded = true
-                try? await Task.sleep(for: .seconds(4))
-                if !running { break }
-                caption = "Breathe out…"
-                expanded = false
-                try? await Task.sleep(for: .seconds(4))
-                seconds = max(0, seconds - 8)
-            }
-            // Timer ran out naturally → grant the star, then dismiss.
-            if running {
-                if !didComplete {
-                    didComplete = true
-                    onComplete()
+            updateBreathingPhase(elapsed: 0)
+            for tick in 1...60 {
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    return
                 }
-                dismiss()
+                if Task.isCancelled { return }
+                guard running else { return }
+                seconds = 60 - tick
+                updateBreathingPhase(elapsed: tick)
             }
+            if Task.isCancelled { return }
+            guard running else { return }
+            if !didComplete {
+                didComplete = true
+                onComplete(true)
+            }
+            dismiss()
         }
     }
 }
@@ -776,19 +808,19 @@ private struct EnergyBreakdownSheet: View {
                 header
 
                 factorSection(
-                    title: "what recharged you",
+                    title: String(localized: "what recharged you"),
                     totalText: "+\(formattedInt(breakdown.recoveryTotal))",
                     items: breakdown.recoveryItems,
                     color: recoveryColor,
-                    emptyLine: "nothing lifting you up right now."
+                    emptyLine: String(localized: "nothing lifting you up right now.")
                 )
 
                 factorSection(
-                    title: "what drew it down",
+                    title: String(localized: "what drew it down"),
                     totalText: signedString(breakdown.loadTotal),
                     items: breakdown.loadItems,
                     color: loadColor,
-                    emptyLine: "nothing pulling you down right now."
+                    emptyLine: String(localized: "nothing pulling you down right now.")
                 )
 
                 footer
@@ -801,7 +833,7 @@ private struct EnergyBreakdownSheet: View {
         .presentationDetents([.fraction(0.72), .large])
         .presentationDragIndicator(.visible)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Energy breakdown, \(breakdown.percent) percent, \(breakdown.word).")
+        .accessibilityLabel(String(format: String(localized: "Energy breakdown, %lld percent, %@."), breakdown.percent, breakdown.word))
     }
 
     // MARK: Header
@@ -809,7 +841,7 @@ private struct EnergyBreakdownSheet: View {
     private var header: some View {
         let level = EnergyLevel.from(percent: breakdown.percent)
         return VStack(alignment: .leading, spacing: 6) {
-            Text("Today's energy")
+            Text("Today's energy", comment: "Energy breakdown sheet title")
                 .font(Theme.Font.label(11, weight: .heavy))
                 .foregroundStyle(.secondary)
                 .tracking(1.2)
@@ -828,6 +860,11 @@ private struct EnergyBreakdownSheet: View {
             Text(breakdown.subtitle)
                 .font(Theme.Font.body(12))
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(HealthKitL10n.breakdownExplanation)
+                .font(Theme.Font.body(11))
+                .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
@@ -921,7 +958,8 @@ private struct EnergyBreakdownSheet: View {
     private var footer: some View {
         let recovery = formattedInt(breakdown.recoveryTotal)
         let load = formattedInt(abs(breakdown.loadTotal))
-        return Text("\(recovery) recharged - \(load) load = \(breakdown.percent)%")
+        let net = Int(breakdown.net.rounded())
+        return Text(HealthKitL10n.breakdownFooter(recovery: recovery, load: load, percent: net))
             .font(Theme.Font.body(12, weight: .medium))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -962,7 +1000,7 @@ private struct WriteNoteSheet: View {
                 .frame(maxWidth: .infinity)
                 .padding(.top, 8)
 
-            Text("Write a note")
+            Text("Write a note", comment: "Write note sheet title")
                 .font(Theme.Font.title(19))
                 .padding(.horizontal, 24)
 
@@ -976,7 +1014,7 @@ private struct WriteNoteSheet: View {
             }
             .padding(.horizontal, 24)
 
-            TextField("Your note", text: $noteText, axis: .vertical)
+            TextField(String(localized: "Your note"), text: $noteText, axis: .vertical)
                 .lineLimit(3...6)
                 .padding(12)
                 .background(Color.gray.opacity(0.12),
@@ -985,9 +1023,9 @@ private struct WriteNoteSheet: View {
                 .focused($focused)
 
             HStack(spacing: 10) {
-                Button("Cancel") { dismiss() }
+                Button(String(localized: "Cancel")) { dismiss() }
                     .buttonStyle(.bordered)
-                Button("Save") { onSave(noteText) }
+                Button(String(localized: "Save")) { onSave(noteText) }
                     .buttonStyle(.borderedProminent)
                     .disabled(noteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
@@ -1033,7 +1071,7 @@ private struct FocusTimerView: View {
             Color.black.opacity(0.92).ignoresSafeArea()
 
             VStack(spacing: 32) {
-                Text("Focus")
+                Text("Focus", comment: "Focus timer title")
                     .font(Theme.Font.label(12, weight: .heavy))
                     .foregroundStyle(.white.opacity(0.65))
                     .tracking(2)
@@ -1055,7 +1093,7 @@ private struct FocusTimerView: View {
                         .foregroundStyle(.white)
                 }
 
-                Text("Keep this screen open.")
+                Text("Keep this screen open.", comment: "Focus timer instruction")
                     .font(Theme.Font.body(13))
                     .foregroundStyle(.white.opacity(0.6))
 
@@ -1069,7 +1107,7 @@ private struct FocusTimerView: View {
         }
         .task { await runCountdown() }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Focus timer, \(timeString(remaining)) remaining")
+        .accessibilityLabel(String(format: String(localized: "Focus timer, %@ remaining"), timeString(remaining)))
     }
 
     private var holdToExitButton: some View {

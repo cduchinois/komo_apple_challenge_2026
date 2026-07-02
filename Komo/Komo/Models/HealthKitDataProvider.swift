@@ -26,7 +26,10 @@ final class HealthKitDataProvider: EnergyDataProviding {
     private var cachedAnalysis: DayAnalysis?
     private var cachedInsightLines: [String] = []
     private var cachedHeadlineInsights: [String] = []
+    private var cachedDailyInsight: KomoGeneratedInsight?
     private var lastLoadDate: Date?
+
+    private let insightGenerator = KomoInsightGenerator()
 
     // MARK: Sub-engines
     private let hk = HealthKitManager.shared
@@ -64,7 +67,9 @@ final class HealthKitDataProvider: EnergyDataProviding {
             daysTogether: daysTogether(),
             rechargedBy: recharged.isEmpty ? rechargedByString(from: analysis) : recharged,
             usedBy: used.isEmpty ? usedByString(from: analysis) : used,
-            headlineInsight: cachedHeadlineInsights.first ?? "Tap the blob to analyze your day."
+            headlineInsight: cachedDailyInsight?.observation
+                ?? cachedHeadlineInsights.first
+                ?? HealthKitL10n.tapBlobAnalyze
         )
     }
 
@@ -79,9 +84,9 @@ final class HealthKitDataProvider: EnergyDataProviding {
     func insightLines(for tone: CompanionTone) -> [String] {
         if cachedInsightLines.isEmpty {
             return [
-                "Tap the blob to load today's energy.",
-                "Your data stays private on this device.",
-                "Ready when you are."
+                HealthKitL10n.tapBlobLoad,
+                HealthKitL10n.dataStaysPrivate,
+                HealthKitL10n.readyWhenYouAre,
             ]
         }
         return cachedInsightLines
@@ -89,7 +94,7 @@ final class HealthKitDataProvider: EnergyDataProviding {
 
     func headlineInsights() -> [String] {
         if cachedHeadlineInsights.isEmpty {
-            return ["Tap the blob to analyze your day."]
+            return [HealthKitL10n.tapBlobAnalyze]
         }
         return cachedHeadlineInsights
     }
@@ -103,12 +108,28 @@ final class HealthKitDataProvider: EnergyDataProviding {
 
     // MARK: - Public refresh
 
+    /// True after a successful loadToday() — used by AppState to decide
+    /// whether to switch the active data provider to this one.
+    var hasData: Bool { cachedAnalysis != nil }
+
+    /// Requests HealthKit read authorization. Idempotent: the system only
+    /// surfaces the permission sheet the first time — subsequent calls resolve
+    /// immediately. Safe to call before every load so returning users (who may
+    /// not have granted during onboarding) still get their data read.
+    func requestPermissions() async {
+        try? await hk.requestHealthAuthorization()
+    }
+
     /// Call this on app launch and when the user taps the blob.
     /// Safe to call multiple times — caches for the day.
     func loadToday() async {
+        // Ensure we hold read authorization before querying. Without this,
+        // HealthKit silently returns empty results for unauthorized types,
+        // which surfaces as "no data" everywhere (0% energy, no sleep, etc.).
+        await requestPermissions()
         do {
             let summary = try await hk.fetchDailySummary(for: Date())
-            let analysis = analyzer.analyzeDay(summary: summary)
+            let analysis = analyzer.analyzeDay(summary: summary, for: Date())
             cachedSnapshot = summary
             cachedAnalysis = analysis
             lastLoadDate = Date()
@@ -118,17 +139,21 @@ final class HealthKitDataProvider: EnergyDataProviding {
                 await HealthKitManager.shared.fetchAndStoreBaseline()
             }
 
-            // Generate AI insight lines (Foundation Models or rule-based fallback)
-            let lines = await generateInsightLines(from: analysis)
+            // AI insight card + companion lines (Foundation Models or rule-based fallback)
+            cachedDailyInsight = await insightGenerator.generateDailyInsight(for: analysis)
+            let aiLines = await insightGenerator.generateCompanionLines(for: analysis)
+            let lines = aiLines.isEmpty
+                ? await generateInsightLines(from: analysis)
+                : aiLines
             cachedInsightLines = lines
-            cachedHeadlineInsights = [lines.first ?? ""]
+            if let daily = cachedDailyInsight {
+                cachedHeadlineInsights = [daily.observation]
+            } else {
+                cachedHeadlineInsights = [lines.first ?? ""]
+            }
         } catch {
             print("⚠️ HealthKitDataProvider: \(error.localizedDescription)")
         }
-    }
-
-    func requestPermissions() async {
-        try? await hk.requestAuthorization()
     }
 
     // MARK: - Personalized Reflections
@@ -136,149 +161,155 @@ final class HealthKitDataProvider: EnergyDataProviding {
     /// Returns data-aware reflection cards built from today's analysis.
     /// Falls back to an empty array (AppState will use its static pool).
     func personalizedReflections() -> [Reflection] {
-        guard let analysis = cachedAnalysis else { return [] }
-        return buildPersonalizedReflections(from: analysis)
+        guard cachedAnalysis != nil else { return [] }
+        var pool: [Reflection] = []
+
+        if let daily = cachedDailyInsight {
+            pool.append(daily.asReflection())
+        }
+
+        if let analysis = cachedAnalysis {
+            let dataCards = buildPersonalizedReflections(from: analysis)
+            // Avoid near-duplicate cards if rule-based echoes the AI card.
+            for card in dataCards where !pool.contains(where: { $0.observation == card.observation }) {
+                pool.append(card)
+            }
+        }
+
+        return pool
     }
 
     private func buildPersonalizedReflections(from analysis: DayAnalysis) -> [Reflection] {
         var pool: [Reflection] = []
 
-        // — Sleep
         if let sleep = analysis.sleepAssessment {
             let h = sleep.data.totalSleepMinutes / 60.0
             let hStr = String(format: "%.1f", h)
             if h < 5 {
                 pool.append(.init(
                     type: .remind,
-                    observation: "you only slept \(hStr) hours last night — that's below your recovery threshold.",
-                    suggestion: "try to be in bed 45 minutes earlier tonight to recover.",
+                    observation: HealthKitL10n.sleepBelowThreshold(hours: hStr),
+                    suggestion: HealthKitL10n.sleepShortSuggestion,
                     actions: [.remindMe, .save, .next]
                 ))
             } else if h < 6.5 {
                 pool.append(.init(
                     type: .remind,
-                    observation: "you slept \(hStr) hours — a little short for full recovery.",
-                    suggestion: "a 15-minute nap this afternoon or an earlier bedtime tonight would help.",
+                    observation: HealthKitL10n.sleepShort(hours: hStr),
+                    suggestion: HealthKitL10n.sleepMediumSuggestion,
                     actions: [.remindMe, .save, .next]
                 ))
             } else if h >= 8 {
                 pool.append(.init(
                     type: .reflect,
-                    observation: "you slept \(hStr) hours last night — solid recovery.",
-                    suggestion: "your body had time to restore. use that clarity for something that matters.",
+                    observation: HealthKitL10n.sleepSolid(hours: hStr),
+                    suggestion: HealthKitL10n.sleepSolidSuggestion,
                     actions: [.save, .writeNote, .next]
                 ))
             }
         } else {
-            // No sleep data tracked
             pool.append(.init(
                 type: .remind,
-                observation: "komo couldn't read your sleep data last night.",
-                suggestion: "make sure your Apple Watch or iPhone is charging nearby while you sleep.",
+                observation: HealthKitL10n.sleepNoDataObservation,
+                suggestion: HealthKitL10n.sleepNoDataSuggestion,
                 actions: [.remindMe, .next]
             ))
         }
 
-        // — Steps / Movement
         let steps = analysis.totalSteps
         if steps < 2_000 {
             pool.append(.init(
                 type: .start,
-                observation: "you've only moved \(steps.formatted()) steps so far today.",
-                suggestion: "a 10-minute walk right now would reset your body and your focus.",
+                observation: HealthKitL10n.stepsLow(steps.formatted()),
+                suggestion: HealthKitL10n.stepsLowSuggestion,
                 actions: [.startNow, .remindMe, .next]
             ))
         } else if steps < 5_000 {
             pool.append(.init(
                 type: .remind,
-                observation: "\(steps.formatted()) steps so far — you're halfway to your daily goal.",
-                suggestion: "try a short walk before your next task to hit 5,000.",
+                observation: HealthKitL10n.stepsMid(steps.formatted()),
+                suggestion: HealthKitL10n.stepsMidSuggestion,
                 actions: [.remindMe, .startNow, .next]
             ))
         } else if steps >= 10_000 {
             pool.append(.init(
                 type: .reflect,
-                observation: "\(steps.formatted()) steps today — you're well above your movement goal.",
-                suggestion: "your body is active. let the evening be for recovery, not another workout.",
+                observation: HealthKitL10n.stepsHigh(steps.formatted()),
+                suggestion: HealthKitL10n.stepsHighSuggestion,
                 actions: [.save, .next]
             ))
         }
 
-        // — HRV
         let hrv = analysis.averageHRV
         if hrv > 0 {
             if hrv < 30 {
                 pool.append(.init(
                     type: .reflect,
-                    observation: "your HRV is at \(Int(hrv)) ms — lower than your typical baseline.",
-                    suggestion: "your nervous system is under load. keep today light and protect sleep tonight.",
+                    observation: HealthKitL10n.hrvLow(Int(hrv)),
+                    suggestion: HealthKitL10n.hrvLowSuggestion,
                     actions: [.save, .remindMe, .next]
                 ))
             } else if hrv > 65 {
                 pool.append(.init(
                     type: .start,
-                    observation: "your HRV is high at \(Int(hrv)) ms — your body is well recovered.",
-                    suggestion: "this is a good window for a workout or deep focus work.",
+                    observation: HealthKitL10n.hrvHigh(Int(hrv)),
+                    suggestion: HealthKitL10n.hrvHighSuggestion,
                     actions: [.startNow, .addToCalendar, .next]
                 ))
             }
         }
 
-        // — Resting HR
         if let rhr = analysis.restingHeartRate {
             if rhr > 80 {
                 pool.append(.init(
                     type: .reflect,
-                    observation: "your resting heart rate is \(Int(rhr)) bpm — elevated for you.",
-                    suggestion: "this can signal fatigue or stress. slow the pace today if you can.",
+                    observation: HealthKitL10n.rhrElevated(Int(rhr)),
+                    suggestion: HealthKitL10n.rhrElevatedSuggestion,
                     actions: [.save, .next]
                 ))
             } else if rhr <= 55 {
                 pool.append(.init(
                     type: .reflect,
-                    observation: "your resting HR is \(Int(rhr)) bpm — strong cardiovascular recovery.",
-                    suggestion: "a low resting HR is a good sign. your body is adapting well.",
+                    observation: HealthKitL10n.rhrStrong(Int(rhr)),
+                    suggestion: HealthKitL10n.rhrStrongSuggestion,
                     actions: [.save, .next]
                 ))
             }
         }
 
-        // — Stress
         if analysis.highStressHours >= 3 {
             pool.append(.init(
                 type: .start,
-                observation: "your heart rate has been elevated for \(analysis.highStressHours) hours today.",
-                suggestion: "take 3 minutes now to breathe. your nervous system will thank you.",
+                observation: HealthKitL10n.stressHigh(hours: analysis.highStressHours),
+                suggestion: HealthKitL10n.stressHighSuggestion,
                 actions: [.startNow, .done, .next]
             ))
         } else if analysis.highStressHours == 0 {
             pool.append(.init(
                 type: .reflect,
-                observation: "your stress levels have been low all day.",
-                suggestion: "a calm day is a gift. notice what made it easier and try to repeat it.",
+                observation: HealthKitL10n.stressLowObservation,
+                suggestion: HealthKitL10n.stressLowSuggestion,
                 actions: [.writeNote, .save, .next]
             ))
         }
 
-        // — Meetings
         if analysis.totalMeetings >= 5 {
             pool.append(.init(
                 type: .add,
-                observation: "you have \(analysis.totalMeetings) meetings today — a heavy cognitive load.",
-                suggestion: "block a 10-minute gap between your meetings to decompress.",
+                observation: HealthKitL10n.meetingsHeavy(analysis.totalMeetings),
+                suggestion: HealthKitL10n.meetingsHeavySuggestion,
                 actions: [.addToCalendar, .save, .next]
             ))
         } else if analysis.totalMeetings == 0 {
             pool.append(.init(
                 type: .start,
-                observation: "no meetings on your calendar today — a clear runway.",
-                suggestion: "protect the focus time. start with the one thing that matters most.",
+                observation: HealthKitL10n.meetingsClearObservation,
+                suggestion: HealthKitL10n.meetingsClearSuggestion,
                 actions: [.startNow, .next]
             ))
         }
 
-        // If pool is too small, return empty → fall back to static pool in AppState
-        return pool.count >= 2 ? pool : []
+        return pool
     }
 
     // MARK: - Build Stats
@@ -290,98 +321,92 @@ final class HealthKitDataProvider: EnergyDataProviding {
         if let rhr = analysis.restingHeartRate, rhr > 0 {
             stats.append(.init(
                 id: "hr",
-                label: "Heart Rate",
+                label: HealthKitL10n.statHeartRate,
                 value: "\(Int(rhr))",
-                unit: "bpm",
-                sub: rhr <= 65 ? "Resting · calm" : "Resting · a little elevated",
+                unit: HealthKitL10n.unitBPM,
+                sub: rhr <= 65 ? HealthKitL10n.restingCalm : HealthKitL10n.restingElevated,
                 tone: rhr <= 70 ? .good : .warn
             ))
         }
 
-        // Steps
         let steps = analysis.totalSteps
         if steps > 0 {
             let pct = min(100, steps * 100 / 10_000)
             stats.append(.init(
                 id: "steps",
-                label: "Steps",
+                label: HealthKitL10n.statSteps,
                 value: steps >= 1000 ? String(format: "%.1fk", Double(steps) / 1000) : "\(steps)",
                 unit: "",
-                sub: "\(pct)% of your goal",
+                sub: HealthKitL10n.stepsGoalPercent(pct),
                 tone: steps >= 6_000 ? .good : .warn
             ))
         }
 
-        // Sleep
         if let sleep = analysis.sleepAssessment {
             let h = Int(sleep.data.totalSleepMinutes) / 60
             let m = Int(sleep.data.totalSleepMinutes) % 60
             let label = m > 0 ? "\(h)h \(m)m" : "\(h)h"
             stats.append(.init(
                 id: "sleep",
-                label: "Sleep",
+                label: HealthKitL10n.statSleep,
                 value: label,
                 unit: "",
-                sub: "Last night · score \(Int(sleep.score))/100",
+                sub: HealthKitL10n.sleepScoreSub(score: Int(sleep.score)),
                 tone: sleep.score >= 65 ? .good : .warn
             ))
         }
 
-        // Stress
         let stressLabel: String
         let stressTone: StatTone
         switch analysis.highStressHours {
-        case 0:     stressLabel = "No stress spikes"; stressTone = .good
-        case 1:     stressLabel = "Mild tension"; stressTone = .good
-        case 2...3: stressLabel = "Moderate load"; stressTone = .warn
-        default:    stressLabel = "High stress"; stressTone = .warn
+        case 0:     stressLabel = HealthKitL10n.stressNone; stressTone = .good
+        case 1:     stressLabel = HealthKitL10n.stressMild; stressTone = .good
+        case 2...3: stressLabel = HealthKitL10n.stressModerate; stressTone = .warn
+        default:    stressLabel = HealthKitL10n.stressHighLabel; stressTone = .warn
         }
         if !analysis.stressTimeline.isEmpty {
             stats.append(.init(
                 id: "stress",
-                label: "Stress",
-                value: stressTone == .good ? "Low" : "High",
+                label: HealthKitL10n.statStress,
+                value: stressTone == .good ? HealthKitL10n.stressValueLow : HealthKitL10n.stressValueHigh,
                 unit: "",
                 sub: stressLabel,
                 tone: stressTone
             ))
         }
 
-        // HRV
         let hrv = analysis.averageHRV
         if hrv > 0 {
             stats.append(.init(
                 id: "hrv",
-                label: "HRV Recovery",
+                label: HealthKitL10n.statHRV,
                 value: "\(Int(hrv))",
                 unit: "ms",
-                sub: hrv >= 50 ? "Well recovered" : hrv >= 30 ? "Moderate" : "Low recovery",
+                sub: hrv >= 50 ? HealthKitL10n.hrvWellRecovered : hrv >= 30 ? HealthKitL10n.hrvModerate : HealthKitL10n.hrvLowRecovery,
                 tone: hrv >= 40 ? .good : .warn
             ))
         }
 
-        // Calories
         let cal = analysis.totalCalories
         if cal > 0 {
             stats.append(.init(
                 id: "activity",
-                label: "Activity",
+                label: HealthKitL10n.statActivity,
                 value: "\(cal)",
-                unit: "cal",
-                sub: cal >= 400 ? "Move ring almost closed" : "Keep moving",
+                unit: HealthKitL10n.unitCal,
+                sub: cal >= 400 ? HealthKitL10n.activityRingAlmost : HealthKitL10n.activityKeepMoving,
                 tone: cal >= 300 ? .good : .warn
             ))
         }
 
-        // Meetings (Calendar)
         let meetings = analysis.totalMeetings
         if meetings > 0 {
             stats.append(.init(
                 id: "calendar",
-                label: "Calendar Load",
+                label: HealthKitL10n.statCalendar,
                 value: "\(meetings)",
-                unit: meetings == 1 ? "event" : "events",
-                sub: meetings >= 5 ? "Heavy meeting day" : "Manageable load",
+                unit: HealthKitL10n.calendarEventUnit(meetings),
+                sub: meetings >= 5 ? HealthKitL10n.calendarHeavy : HealthKitL10n.calendarManageable,
                 tone: meetings <= 4 ? .good : .warn
             ))
         }
@@ -391,135 +416,59 @@ final class HealthKitDataProvider: EnergyDataProviding {
 
     // MARK: - Energy Breakdown
     //
-    // Uses EnergyScoreEngine to compute E = R × exp(−1.5L) × 100, then
-    // produces individual contribution points by normalizing counterfactual ΔEs:
-    //
-    //   recoverySum = R × 100   (budget before load)
-    //   loadLoss    = R × 100 − E  (how much load reduced the budget)
-    //
-    // Each ΔE is scaled proportionally so:
-    //   sum(recovery_pts) + sum(load_pts) ≈ percent  (net == percent ✓)
+    // Delegates to EnergyScoreEngine.buildUserFacingBreakdown — see that type for
+    // the scoring rubric (actual contributions, not counterfactual headroom).
 
     private func buildBreakdown(from analysis: DayAnalysis) -> EnergyBreakdown {
-        // 1. Run the documented formula
-        let result  = EnergyScoreEngine.shared.compute(from: analysis)
-        guard result.isAvailable else { return .placeholder }
-
-        // 2. Counterfactual driver analysis
-        let drivers = EnergyScoreEngine.shared.analyzeDrivers(from: result, analysis: analysis)
-
-        // 3. Normalise ΔE values so contributions sum exactly to percent
-        let R_pts    = result.R * 100.0         // recovery budget before load
-        let loadLoss = R_pts - result.score     // positive: load's damage in score-points
-
-        let recoveryDrivers = drivers.filter { $0.kind == .recovery }
-        let loadDrivers     = drivers.filter { $0.kind == .load }
-
-        let rawRecSum = recoveryDrivers.map { max(0, $0.deltaE) }.reduce(0, +)
-        let rawLdSum  = loadDrivers.filter { $0.deltaE > 0.5 }.map { $0.deltaE }.reduce(0, +)
-
-        var contributions: [EnergyContribution] = []
-
-        // Recovery contributions (sorted by importance, highest first)
-        for d in recoveryDrivers.sorted(by: { $0.deltaE > $1.deltaE }) {
-            let pts = rawRecSum > 0 ? (max(0, d.deltaE) / rawRecSum) * R_pts : 0
-            contributions.append(.init(label: d.label, detail: d.detail,
-                                       points: pts.rounded(), kind: .recovery))
-        }
-
-        // Load contributions: only show actual drains (deltaE > 0.5 threshold)
-        // Zero-load items (no stress, no meetings, no workout) are omitted —
-        // a missing row is cleaner than an invisible bar with "+0".
-        for d in loadDrivers.sorted(by: { $0.deltaE > $1.deltaE }) where d.deltaE > 0.5 {
-            guard rawLdSum > 0 else { continue }
-            let pts = -((d.deltaE / rawLdSum) * loadLoss).rounded()
-            contributions.append(.init(label: d.label, detail: d.detail,
-                                       points: pts, kind: .load))
-        }
-
-        // If NOTHING drew it down today, add a single positive summary row
-        // so the "WHAT DREW IT DOWN" section isn't completely empty.
-        let hasAnyLoad = loadDrivers.contains { $0.deltaE > 0.5 }
-        if !hasAnyLoad {
-            contributions.append(.init(
-                label: "No significant load",
-                detail: "calm day — stress, calendar & workout all low",
-                points: 0,
-                kind: .load
-            ))
-        }
-
-        let percent = Int(result.score.rounded())
-        let word    = EnergyLevel.from(percent: percent).word
-        return EnergyBreakdown(percent: percent, word: word, contributions: contributions)
+        EnergyScoreEngine.shared.buildUserFacingBreakdown(
+            from: analysis,
+            subtitle: HealthKitL10n.breakdownSubtitle
+        ) ?? .placeholder
     }
 
 
     // MARK: - AI Insight Lines (Foundation Models or rule-based)
 
     private func generateInsightLines(from analysis: DayAnalysis) async -> [String] {
-        #if canImport(FoundationModels)
-        if #available(iOS 26, *) {
-            if let lines = await generateWithAI(analysis: analysis) {
-                return lines
-            }
+        if let daily = cachedDailyInsight {
+            return [daily.observation]
         }
-        #endif
         return ruleBasedInsightLines(from: analysis)
     }
-
-    #if canImport(FoundationModels)
-    @available(iOS 26, *)
-    private func generateWithAI(analysis: DayAnalysis) async -> [String]? {
-        guard SystemLanguageModel.default.isAvailable else { return nil }
-        let builder = KomoPromptBuilder(analysis: analysis)
-        do {
-            let session = LanguageModelSession(instructions: builder.buildSystemPrompt())
-            let response = try await session.respond(to: builder.buildInsightsUserMessage())
-            let lines = response.content
-                .components(separatedBy: "\n")
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty && $0.count > 8 }
-            return lines.isEmpty ? nil : Array(lines.prefix(5))
-        } catch {
-            print("⚠️ Foundation Models: \(error)")
-            return nil
-        }
-    }
-    #endif
 
     private func ruleBasedInsightLines(from analysis: DayAnalysis) -> [String] {
         var lines: [String] = []
 
         if let sleep = analysis.sleepAssessment {
             let h = sleep.data.totalSleepMinutes / 60.0
+            let hStr = String(format: "%.1f", h)
             if h >= 7.5 && sleep.score >= 75 {
-                lines.append("You slept \(String(format: "%.1f", h)) hours last night — your body had time to recover.")
+                lines.append(HealthKitL10n.insightSleepRecovered(hours: hStr))
             } else if h < 6 {
-                lines.append("Only \(String(format: "%.1f", h)) hours of sleep. A short nap this afternoon could help.")
+                lines.append(HealthKitL10n.insightSleepShort(hours: hStr))
             } else {
-                lines.append("\(String(format: "%.1f", h)) hours of sleep — decent, but your deep sleep was \(Int(sleep.data.deepSleepPct))%.")
+                lines.append(HealthKitL10n.insightSleepDeep(hours: hStr, deepPct: Int(sleep.data.deepSleepPct)))
             }
         }
 
         if analysis.highStressHours >= 3 {
-            lines.append("Your system logged \(analysis.highStressHours) hours of high stress — a breath break would help right now.")
+            lines.append(HealthKitL10n.insightStressLogged(hours: analysis.highStressHours))
         } else if analysis.highStressHours == 0 && !analysis.stressTimeline.isEmpty {
-            lines.append("Low stress all day. That's rare — notice how it feels.")
+            lines.append(HealthKitL10n.insightStressLow)
         } else if let peak = analysis.peakStressHour {
-            lines.append("Stress peaked around \(peak.hour):00, HR at \(Int(peak.meanHR)) bpm.")
+            lines.append(HealthKitL10n.insightStressPeak(hour: peak.hour, bpm: Int(peak.meanHR)))
         }
 
         let steps = analysis.totalSteps
         if steps >= 10_000 {
-            lines.append("\(steps) steps today — one of your stronger days for movement.")
+            lines.append(HealthKitL10n.insightStepsStrong(steps))
         } else if steps > 0 {
             let pct = steps * 100 / 10_000
-            lines.append("At \(steps) steps you're \(pct)% of the way to your goal.")
+            lines.append(HealthKitL10n.insightStepsProgress(steps: steps, pct: pct))
         }
 
         if lines.isEmpty {
-            lines.append("Tap the blob to load today's energy data.")
+            lines.append(HealthKitL10n.insightTapBlob)
         }
 
         return lines
@@ -529,18 +478,18 @@ final class HealthKitDataProvider: EnergyDataProviding {
 
     private func rechargedByString(from analysis: DayAnalysis) -> String {
         var parts: [String] = []
-        if let sleep = analysis.sleepAssessment, sleep.score >= 65 { parts.append("sleep") }
-        if analysis.totalSteps >= 6_000 { parts.append("movement") }
-        if analysis.averageHRV >= 45    { parts.append("HRV recovery") }
-        return parts.isEmpty ? "rest" : parts.joined(separator: " + ")
+        if let sleep = analysis.sleepAssessment, sleep.score >= 65 { parts.append(HealthKitL10n.partSleep) }
+        if analysis.totalSteps >= 6_000 { parts.append(HealthKitL10n.partMovement) }
+        if analysis.averageHRV >= 45    { parts.append(HealthKitL10n.partHRV) }
+        return parts.isEmpty ? HealthKitL10n.partRest : parts.joined(separator: " + ")
     }
 
     private func usedByString(from analysis: DayAnalysis) -> String {
         var parts: [String] = []
-        if analysis.highStressHours >= 2 { parts.append("stress") }
-        if analysis.totalMeetings >= 4   { parts.append("meetings") }
-        if let sleep = analysis.sleepAssessment, sleep.data.totalSleepMinutes < 360 { parts.append("poor sleep") }
-        return parts.isEmpty ? "normal activity" : parts.joined(separator: " + ")
+        if analysis.highStressHours >= 2 { parts.append(HealthKitL10n.partStress) }
+        if analysis.totalMeetings >= 4   { parts.append(HealthKitL10n.partMeetings) }
+        if let sleep = analysis.sleepAssessment, sleep.data.totalSleepMinutes < 360 { parts.append(HealthKitL10n.partPoorSleep) }
+        return parts.isEmpty ? HealthKitL10n.partNormalActivity : parts.joined(separator: " + ")
     }
 
     private func daysTogether() -> Int {
@@ -560,27 +509,28 @@ private extension Int {
 
 private extension EnergySnapshot {
     static let placeholder = EnergySnapshot(
-        word: "Loading…",
+        word: HealthKitL10n.loading,
         percent: 50,
         daysTogether: 1,
         rechargedBy: "—",
         usedBy: "—",
-        headlineInsight: "Tap the blob to start your first check-in."
+        headlineInsight: HealthKitL10n.tapBlobStartCheckIn
     )
 }
 
 private extension EnergyBreakdown {
     static let placeholder = EnergyBreakdown(
         percent: 50,
-        word: "Loading",
+        word: HealthKitL10n.loading,
+        subtitle: "",
         contributions: []
     )
 }
 
 private extension EnergyStat {
     static let loadingPlaceholders: [EnergyStat] = [
-        .init(id: "hr",    label: "Heart Rate", value: "—", unit: "bpm", sub: "Loading…", tone: .good),
-        .init(id: "steps", label: "Steps",      value: "—", unit: "",    sub: "Loading…", tone: .good),
-        .init(id: "sleep", label: "Sleep",      value: "—", unit: "",    sub: "Loading…", tone: .good),
+        .init(id: "hr",    label: HealthKitL10n.statHeartRate, value: "—", unit: HealthKitL10n.unitBPM, sub: HealthKitL10n.loading, tone: .good),
+        .init(id: "steps", label: HealthKitL10n.statSteps,      value: "—", unit: "",    sub: HealthKitL10n.loading, tone: .good),
+        .init(id: "sleep", label: HealthKitL10n.statSleep,      value: "—", unit: "",    sub: HealthKitL10n.loading, tone: .good),
     ]
 }

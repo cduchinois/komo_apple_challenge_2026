@@ -11,8 +11,7 @@ struct RestoresView: View {
     @Environment(AppState.self) private var app
     var namespace: Namespace.ID
 
-    private let options = ["walking", "music", "quiet time", "workout",
-                           "nap / sleep", "outside", "talking", "not sure yet"]
+    private let options = OnboardingOptions.restores
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,7 +41,7 @@ struct RestoresView: View {
             }
             .padding(.top, 16)
         }
-        .padding(.horizontal, Theme.Space.screenH)
+        .safeAreaPadding(.horizontal, 40)
         .padding(.top, Theme.Space.screenTop)
         .padding(.bottom, 32)
         .animation(.spring(response: 0.25), value: app.restores)

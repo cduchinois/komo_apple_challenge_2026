@@ -49,13 +49,7 @@ enum EnergyLevel {
     }
 
     var word: String {
-        switch self {
-        case .charged: return "Charged"
-        case .steady:  return "Steady"
-        case .fragile: return "Fragile"
-        case .low:     return "Low"
-        case .drained: return "Drained"
-        }
+        L10n.energyLevel(self)
     }
 
     /// Green (charged) → yellow-green → amber → orange → red (drained).
@@ -100,17 +94,7 @@ enum ReflectionAction: String, Identifiable, Codable, Equatable, CaseIterable {
 
     var id: String { rawValue }
 
-    var label: String {
-        switch self {
-        case .addToCalendar: return "Add to calendar"
-        case .save:          return "Save"
-        case .writeNote:     return "Write a note"
-        case .remindMe:      return "Remind me"
-        case .startNow:      return "Start now"
-        case .done:          return "Done"
-        case .next:          return "Next"
-        }
-    }
+    var label: String { L10n.reflectionAction(self) }
 
     var systemImage: String {
         switch self {
@@ -377,31 +361,33 @@ final class AppState {
         )
     }
 
-    /// Called at the start of LoadingView — snapshots onboarding answers into
-    /// topic sets and upgrades the data provider.
-    func completeOnboarding() {
-        userDrainTopics    = drains.compactMap { Topic(rawValue: $0.replacingOccurrences(of: " ", with: "")) }
-        userRechargeTopics = restores.compactMap { Topic(rawValue: $0.replacingOccurrences(of: " ", with: "")) }
-        returning = true
-        data = OnboardingEnergyScorer(
-            energyNow: energyNow,
-            sleepAnswer: sleepAnswer,
-            energyType: energyType,
-            fallback: data
-        )
-        saveNow()
-    }
 
-    /// Requests HealthKit permissions and loads today's data in the background.
+    /// Requests HealthKit permissions, loads today's data, and switches the
+    /// active data provider to the real HealthKit-backed scorer.
     @MainActor
     func completeOnboardingLoad() async {
-        if auth.health || auth.calendar {
-            await HealthKitDataProvider.shared.requestPermissions()
-            await HealthKitDataProvider.shared.loadToday()
+        // Load only — Health/Calendar prompts are triggered from onboarding buttons.
+        await HealthKitDataProvider.shared.loadToday()
+        // Only switch to HealthKit provider if the load succeeded and we have data.
+        if HealthKitDataProvider.shared.hasData {
+            self.data = HealthKitDataProvider.shared
+            reflectionIndex = 0
         }
         publishWidgetEnergySnapshot()
         persistCurrentEnergyCheckIn()
         saveNow()
+    }
+
+    /// Loads fresh HealthKit data and switches AppState.data to the real provider.
+    /// Call this on every foreground launch so returning users always see live data.
+    @MainActor
+    func refreshFromHealthKit() async {
+        await HealthKitDataProvider.shared.loadToday()
+        if HealthKitDataProvider.shared.hasData {
+            self.data = HealthKitDataProvider.shared
+            reflectionIndex = 0
+        }
+        publishWidgetEnergySnapshot()
     }
 
     // MARK: - UserDefaults keys (personalization + cursor + score persistence)
@@ -433,158 +419,7 @@ final class AppState {
 
     /// The Reflect pool — exactly 25 cards, in this order. Topic tags feed
     /// the InsightSequencer's rule-based matcher.
-    static let reflectionPool: [Reflection] = [
-        // 1
-        .init(type: .add,
-              observation: "your energy often dips after back-to-back meetings.",
-              suggestion: "take 5 minutes outside before your next call.",
-              actions: [.addToCalendar, .save, .next],
-              topics: [.meetings]),
-        // 2
-        .init(type: .reflect,
-              observation: "you slept 7+ hours on five nights this week.",
-              suggestion: "your body seems to recover better when sleep is consistent.",
-              actions: [.writeNote, .save, .next],
-              topics: [.napSleep, .poorSleep]),
-        // 3
-        .init(type: .remind,
-              observation: "afternoons feel foggy on days you eat a heavy lunch.",
-              suggestion: "try a lighter lunch before 1pm today.",
-              actions: [.remindMe, .save, .next],
-              topics: []),
-        // 4
-        .init(type: .remind,
-              observation: "your screen time usually climbs after 9pm.",
-              suggestion: "dim your phone at 9 tonight and see how your sleep feels.",
-              actions: [.remindMe, .save, .next],
-              topics: [.scrolling, .poorSleep]),
-        // 5
-        .init(type: .start,
-              observation: "you skipped your usual workout today.",
-              suggestion: "try a quick 10-minute reset instead.",
-              actions: [.startNow, .save, .next],
-              topics: [.workout]),
-        // 6
-        .init(type: .start,
-              observation: "mornings go better when you begin with focus instead of scrolling.",
-              suggestion: "start a 10-minute focus session.",
-              actions: [.startNow, .remindMe, .next],
-              topics: [.scrolling]),
-        // 7
-        .init(type: .start,
-              observation: "someone's been on your mind.",
-              suggestion: "send a quick text or call them now.",
-              actions: [.startNow, .done, .next],
-              topics: [.timeWithFriends]),
-        // 8
-        .init(type: .add,
-              observation: "your calendar looks packed before lunch.",
-              suggestion: "block 10 minutes after your last morning meeting.",
-              actions: [.addToCalendar, .next],
-              topics: [.meetings, .intenseWork]),
-        // 9
-        .init(type: .remind,
-              observation: "you tend to sit for long stretches on workdays.",
-              suggestion: "stand up for 3 minutes before your next session.",
-              actions: [.remindMe, .done, .next],
-              topics: [.intenseWork]),
-        // 10
-        .init(type: .start,
-              observation: "your energy looks low right now.",
-              suggestion: "do a 2-minute reset: breathe, stretch, drink water.",
-              actions: [.startNow, .next],
-              topics: []),
-        // 11
-        .init(type: .remind,
-              observation: "late workouts seem to push your bedtime later.",
-              suggestion: "try moving your workout earlier today.",
-              actions: [.remindMe, .save, .next],
-              topics: [.workout, .poorSleep]),
-        // 12
-        .init(type: .reflect,
-              observation: "you moved more than usual yesterday.",
-              suggestion: "your energy looks steadier after active days.",
-              actions: [.save, .writeNote, .next],
-              topics: [.workout, .walking]),
-        // 13
-        .init(type: .start,
-              observation: "your focus usually improves after a short walk.",
-              suggestion: "take a 7-minute walk without your phone.",
-              actions: [.startNow, .done, .next],
-              topics: [.walking]),
-        // 14
-        .init(type: .remind,
-              observation: "your evening energy crashes after long screen sessions.",
-              suggestion: "take a screen break before dinner.",
-              actions: [.remindMe, .next],
-              topics: [.scrolling]),
-        // 15
-        .init(type: .add,
-              observation: "you have a heavy meeting block today.",
-              suggestion: "protect a recovery gap after it.",
-              actions: [.addToCalendar, .next],
-              topics: [.meetings]),
-        // 16
-        .init(type: .start,
-              observation: "you look mentally loaded today.",
-              suggestion: "clear one small task in 10 minutes.",
-              actions: [.startNow, .next],
-              topics: [.intenseWork]),
-        // 17
-        .init(type: .reflect,
-              observation: "quiet time seems to help you recharge.",
-              suggestion: "notice how you feel after 5 minutes without input.",
-              actions: [.writeNote, .save, .next],
-              topics: [.quietTime]),
-        // 18
-        .init(type: .remind,
-              observation: "your sleep tends to suffer after late scrolling.",
-              suggestion: "start wind down mode at 9:30 tonight.",
-              actions: [.remindMe, .next],
-              topics: [.scrolling, .poorSleep]),
-        // 19
-        .init(type: .start,
-              observation: "your body has been still for a while.",
-              suggestion: "move for 5 minutes. nothing heroic.",
-              actions: [.startNow, .done, .next],
-              topics: [.walking, .workout]),
-        // 20
-        .init(type: .reflect,
-              observation: "your best energy window is usually in the morning.",
-              suggestion: "protect that window for deep work when you can.",
-              actions: [.save, .addToCalendar, .next],
-              topics: [.intenseWork]),
-        // 21
-        .init(type: .remind,
-              observation: "your afternoon dips often follow low-movement mornings.",
-              suggestion: "take a short walk before lunch.",
-              actions: [.remindMe, .next],
-              topics: [.walking]),
-        // 22
-        .init(type: .start,
-              observation: "you seem close to an energy crash.",
-              suggestion: "pause for 3 minutes before pushing through.",
-              actions: [.startNow, .next],
-              topics: []),
-        // 23
-        .init(type: .reflect,
-              observation: "social time seems to recharge you on some days.",
-              suggestion: "notice who gives you energy, not just attention.",
-              actions: [.writeNote, .save, .next],
-              topics: [.timeWithFriends, .socialPlans]),
-        // 24
-        .init(type: .remind,
-              observation: "your focus drops when meetings run back-to-back.",
-              suggestion: "leave 5 minutes between calls when possible.",
-              actions: [.addToCalendar, .save, .next],
-              topics: [.meetings]),
-        // 25
-        .init(type: .start,
-              observation: "you have a small window right now.",
-              suggestion: "use it to reset, not scroll.",
-              actions: [.startNow, .next],
-              topics: [.scrolling]),
-    ]
+    static var reflectionPool: [Reflection] { ReflectionCatalog.staticPool }
 
     // MARK: Derived values
 
@@ -713,6 +548,7 @@ final class AppState {
         userDrainTopics    = drains.compactMap(Self.drainTopic(from:))
         userRechargeTopics = restores.compactMap(Self.rechargeTopic(from:))
         reflectionIndex = 0
+        returning = true
 
         // Wrap the current provider in the onboarding scorer so Home + the (i)
         // sheet use the rule-based score from now on. If it's already wrapped
@@ -740,12 +576,8 @@ final class AppState {
 
     // MARK: Home-screen state derivations
 
-    /// Personalized pool if the user has onboarding topics, else the plain pool.
-    /// Same output feeds both the Home insight card and the Reflect button so
-    /// they stay in sync.
-    /// TODO: replace `RuleBasedInsightSequencer` with the Foundation Models
-    ///       reasoning engine (same InsightSequencing protocol).
-    var resolvedPool: [Reflection] {
+    /// Static or onboarding-sequenced pool when HealthKit has no personalized cards.
+    private var fallbackReflectionPool: [Reflection] {
         guard !userDrainTopics.isEmpty || !userRechargeTopics.isEmpty else {
             return Self.reflectionPool
         }
@@ -755,11 +587,27 @@ final class AppState {
                                      recharges: userRechargeTopics)
     }
 
+    /// Reflection pool shown on Home. HealthKit/AI cards lead; the static pool is
+    /// appended so Next always has cards to cycle through (even when HealthKit
+    /// returns a single personalized insight).
+    var resolvedPool: [Reflection] {
+        let personalized = data.personalizedReflections()
+        let fallback = fallbackReflectionPool
+        guard !personalized.isEmpty else { return fallback }
+
+        var pool = personalized
+        for card in fallback where !pool.contains(where: { $0.observation == card.observation }) {
+            pool.append(card)
+        }
+        return pool
+    }
+
     /// The reflection currently displayed on the home speech card.
-    /// Prefers data-personalized cards from the backend; falls back to the
+    /// Prefers data-personalized cards from HealthKit; falls back to the
     /// static pool so the card is never empty.
     var currentReflection: Reflection {
         let pool = resolvedPool
+        guard !pool.isEmpty else { return Self.reflectionPool[0] }
         return pool[reflectionIndex % pool.count]
     }
 
@@ -778,11 +626,14 @@ final class AppState {
     /// render the same score outside the app process.
     func publishWidgetEnergySnapshot() {
         let snapshot = data.currentSnapshot()
+        let reflection = currentReflection
         WidgetEnergySnapshot.save(WidgetEnergySnapshot(
             percent: homeEnergyPercent,
             word: homeEnergyLevel.word,
             rechargedBy: snapshot.rechargedBy,
             usedBy: snapshot.usedBy,
+            insightText: reflection.observation,
+            insightSuggestion: reflection.suggestion,
             updatedAt: Date()
         ))
         WidgetCenter.shared.reloadTimelines(ofKind: "KomoEnergyWidget")
@@ -795,6 +646,7 @@ final class AppState {
     /// Persists to UserDefaults so the position survives relaunch.
     func advanceReflection() {
         reflectionIndex = (reflectionIndex + 1) % max(1, resolvedPool.count)
+        publishWidgetEnergySnapshot()
     }
 
     // MARK: Reflect — action handlers (per-card buttons)

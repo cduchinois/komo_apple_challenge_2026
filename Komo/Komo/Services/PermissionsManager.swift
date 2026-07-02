@@ -5,17 +5,8 @@
 //  `PermissionState` for each domain so views (onboarding + Profile) can
 //  render live status. Reads back the system's authoritative state on refresh.
 //
-//  - Notifications: real `UNUserNotificationCenter` request.
-//  - Calendar: real `EKEventStore.requestFullAccessToEvents` (iOS 17+).
-//    Requires `NSCalendarsFullAccessUsageDescription` in Info.plist — added
-//    via project INFOPLIST_KEY. Missing that string crashes on first request.
-//  - Health: HealthKit needs the HealthKit capability + entitlement enabled
-//    in Signing & Capabilities. Until that is wired we simulate a grant so
-//    the onboarding flow is demoable end-to-end. TODO: swap in the real
-//    `HKHealthStore.requestAuthorization(toShare:read:)` once the entitlement
-//    is added.
-//  - Screen Time: iOS doesn't expose a runtime request for this — status is
-//    reported as "not connected" in Profile.
+//  Health and Calendar prompts are only fired from explicit UI actions
+//  (HealthPermissionView / CalendarPermissionView / Profile), never on launch.
 
 import SwiftUI
 import Observation
@@ -32,13 +23,7 @@ enum PermissionState: String, Equatable {
     case granted
     case denied
 
-    var label: String {
-        switch self {
-        case .granted:      return "Connected"
-        case .denied:       return "Not connected"
-        case .notDetermined: return "Not connected"
-        }
-    }
+    var label: String { L10n.permissionState(self) }
 }
 
 @Observable
@@ -52,39 +37,20 @@ final class PermissionsManager {
     var screenTime: PermissionState = .notDetermined
 
     private let eventStore = EKEventStore()
-    private let healthStore = HKHealthStore()
 
-    /// Health-read set requested during onboarding — sleep + core cardio + steps.
-    private var healthReadTypes: Set<HKObjectType> {
-        var s: Set<HKObjectType> = []
-        if let t = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { s.insert(t) }
-        if let t = HKObjectType.quantityType(forIdentifier: .heartRate) { s.insert(t) }
-        if let t = HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN) { s.insert(t) }
-        if let t = HKObjectType.quantityType(forIdentifier: .restingHeartRate) { s.insert(t) }
-        if let t = HKObjectType.quantityType(forIdentifier: .stepCount) { s.insert(t) }
-        return s
-    }
-
-    // MARK: - Health (real HealthKit request)
+    // MARK: - Health (native HealthKit sheet)
 
     /// Fires the native HealthKit authorization sheet.
-    /// - Requires the HealthKit capability enabled in Signing & Capabilities
-    ///   AND `NSHealthShareUsageDescription` in Info.plist. Without those,
-    ///   the request returns an error immediately and no sheet appears.
-    /// - HK does not tell us the user's per-type answer for `read` scopes,
-    ///   so a successful `requestAuthorization` means "the sheet closed" and
-    ///   we mark the state `.granted`. Real per-type authorization is read
-    ///   later at query time.
+    /// Requires the HealthKit capability + `NSHealthShareUsageDescription`.
     func requestHealth() async {
         guard HKHealthStore.isHealthDataAvailable() else {
             health = .denied
             return
         }
         do {
-            try await healthStore.requestAuthorization(toShare: [], read: healthReadTypes)
+            try await HealthKitManager.shared.requestHealthAuthorization()
             health = .granted
         } catch {
-            // Missing entitlement or user cancelled — treat as denied.
             health = .denied
         }
     }

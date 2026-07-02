@@ -11,16 +11,18 @@ struct KomoEnergyEntry: TimelineEntry {
 
 struct KomoEnergyProvider: TimelineProvider {
     func placeholder(in context: Context) -> KomoEnergyEntry {
-        KomoEnergyEntry(date: Date(), snapshot: .fallback)
+        KomoEnergyEntry(date: Date(), snapshot: .preview)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (KomoEnergyEntry) -> Void) {
-        completion(KomoEnergyEntry(date: Date(), snapshot: WidgetEnergySnapshot.load()))
+        let snapshot = context.isPreview ? .preview : WidgetEnergySnapshot.load()
+        completion(KomoEnergyEntry(date: Date(), snapshot: snapshot))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<KomoEnergyEntry>) -> Void) {
         let entry = KomoEnergyEntry(date: Date(), snapshot: WidgetEnergySnapshot.load())
-        let nextRefresh = Calendar.current.date(byAdding: .minute, value: 30, to: entry.date) ?? entry.date.addingTimeInterval(1800)
+        let nextRefresh = Calendar.current.date(byAdding: .minute, value: 15, to: entry.date)
+            ?? entry.date.addingTimeInterval(900)
         completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
     }
 }
@@ -29,109 +31,124 @@ struct KomoEnergyWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: KomoEnergyEntry
 
-    private var progress: Double {
-        Double(entry.snapshot.clampedPercent) / 100.0
-    }
-
-    private var energyColor: Color {
-        switch entry.snapshot.clampedPercent {
-        case 80...: return Color(red: 0.31, green: 0.64, blue: 0.37)
-        case 60..<80: return Color(red: 0.58, green: 0.84, blue: 0.43)
-        case 40..<60: return Color(red: 0.91, green: 0.73, blue: 0.24)
-        case 20..<40: return Color(red: 0.90, green: 0.54, blue: 0.24)
-        default: return Color(red: 0.85, green: 0.32, blue: 0.24)
-        }
-    }
+    private var snapshot: WidgetEnergySnapshot { entry.snapshot }
 
     var body: some View {
-        switch family {
-        case .systemMedium:
-            mediumLayout
-        default:
-            smallLayout
-        }
-    }
-
-    private var smallLayout: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            logoRow
-
-            Spacer(minLength: 0)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.snapshot.word)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-
-                Text(entry.snapshot.hasPublishedData ? "\(entry.snapshot.clampedPercent)% energy" : "Sync energy")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
+        Group {
+            switch family {
+            case .systemMedium:
+                mediumLayout
+            default:
+                smallLayout
             }
-
-            progressBar
         }
-        .komoWidgetBackground()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(family == .systemMedium ? 16 : 12)
+        .containerBackground(for: .widget) {
+            KomoWidgetPalette.backgroundGradient
+        }
     }
+
+    // MARK: - Medium
 
     private var mediumLayout: some View {
-        HStack(spacing: 16) {
-            logoImage
-                .frame(width: 70, height: 70)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .shadow(color: energyColor.opacity(0.24), radius: 12, y: 6)
+        HStack(alignment: .center, spacing: 14) {
+            mascotBadge(size: 88)
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text("KOMO")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .tracking(0.4)
+            VStack(alignment: .leading, spacing: 8) {
+                brandRow
 
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(entry.snapshot.word)
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-
-                    if entry.snapshot.hasPublishedData {
-                        Text("\(entry.snapshot.clampedPercent)%")
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
-                            .foregroundStyle(energyColor)
-                            .lineLimit(1)
-                    }
-                }
-
-                progressBar
-
-                Text(entry.snapshot.hasPublishedData ? "Charged by \(entry.snapshot.rechargedBy)" : "Launch Komo to sync your energy")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
+                Text(snapshot.hasPublishedData ? snapshot.energyHeadline : String(localized: "open komo"))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
+
+                Text(snapshot.widgetSubtitle)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.78))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .komoWidgetBackground()
     }
 
-    private var logoRow: some View {
-        HStack(spacing: 8) {
-            logoImage
-                .frame(width: 34, height: 34)
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+    // MARK: - Small
 
-            Text("KOMO")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+    private var smallLayout: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            brandRow
+
+            HStack(alignment: .center, spacing: 10) {
+                mascotBadge(size: 50)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(snapshot.hasPublishedData ? snapshot.energyHeadline : String(localized: "open komo"))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+
+                    if snapshot.hasPublishedData {
+                        Text("\(snapshot.clampedPercent)%")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(KomoWidgetPalette.leaf)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Text(snapshot.widgetSubtitle)
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.78))
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
         }
+    }
+
+    // MARK: - Shared pieces
+
+    private var brandRow: some View {
+        HStack(spacing: 6) {
+            appLogoImage
+                .frame(width: 18, height: 18)
+                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+
+            Text("Komo")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.88))
+        }
+    }
+
+    private func mascotBadge(size: CGFloat) -> some View {
+        ZStack(alignment: .bottom) {
+            appLogoImage
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+                .overlay {
+                    Circle()
+                        .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+                }
+
+            if snapshot.hasPublishedData {
+                Text("\(snapshot.clampedPercent)%")
+                    .font(.system(size: size > 60 ? 12 : 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background {
+                        Capsule()
+                            .fill(.black.opacity(0.42))
+                    }
+                    .offset(y: 5)
+            }
+        }
+        .frame(width: size, height: size)
     }
 
     @ViewBuilder
-    private var logoImage: some View {
+    private var appLogoImage: some View {
         #if canImport(UIKit)
         if let image = Self.appLogoImage {
             Image(uiImage: image)
@@ -147,7 +164,7 @@ struct KomoEnergyWidgetView: View {
 
     #if canImport(UIKit)
     private static var appLogoImage: UIImage? {
-        ["Blob_App_Icon.png 1-2", "Blob_App_Icon.png 1-2.png", "AppIcon"]
+        ["KomoAppLogo", "Blob_App_Icon.png 1-2", "Blob_App_Icon.png 1-2.png", "AppIcon"]
             .lazy
             .compactMap { UIImage(named: $0) }
             .first
@@ -155,42 +172,31 @@ struct KomoEnergyWidgetView: View {
     #endif
 
     private var fallbackLogo: some View {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(energyColor.gradient)
+        Circle()
+            .fill(KomoWidgetPalette.leaf.gradient)
             .overlay {
                 Text("K")
-                    .font(.system(size: 18, weight: .black, design: .rounded))
+                    .font(.system(size: 22, weight: .black, design: .rounded))
                     .foregroundStyle(.white)
             }
     }
-
-    private var progressBar: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.black.opacity(0.08))
-                Capsule()
-                    .fill(energyColor.gradient)
-                    .frame(width: max(8, proxy.size.width * progress))
-            }
-        }
-        .frame(height: 8)
-        .accessibilityLabel("Energy")
-        .accessibilityValue("\(entry.snapshot.clampedPercent) percent")
-    }
 }
 
-private extension View {
-    func komoWidgetBackground() -> some View {
-        self
-            .padding(16)
-            .containerBackground(for: .widget) {
-                LinearGradient(
-                    colors: [Color(red: 0.98, green: 0.98, blue: 0.96), Color(red: 0.91, green: 0.96, blue: 0.88)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            }
+private enum KomoWidgetPalette {
+    static let forestDark = Color(red: 0.12, green: 0.18, blue: 0.11)
+    static let forestMid = Color(red: 0.18, green: 0.28, blue: 0.16)
+    static let leaf = Color(red: 0.58, green: 0.84, blue: 0.43)
+
+    static var backgroundGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                forestDark,
+                forestMid,
+                leaf.opacity(0.55)
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
     }
 }
 
@@ -201,20 +207,32 @@ struct KomoWidget: Widget {
         StaticConfiguration(kind: kind, provider: KomoEnergyProvider()) { entry in
             KomoEnergyWidgetView(entry: entry)
         }
-        .configurationDisplayName("KOMO Energy")
-        .description("Shows your current KOMO energy score.")
+        .configurationDisplayName(String(localized: "KOMO"))
+        .description(String(localized: "Your energy and today's insight, synced from Komo."))
         .supportedFamilies([.systemSmall, .systemMedium])
     }
+}
+
+private extension WidgetEnergySnapshot {
+    static let preview = WidgetEnergySnapshot(
+        percent: 72,
+        word: "Steady",
+        rechargedBy: "resting hr",
+        usedBy: "",
+        insightText: "your focus usually improves after a short walk.",
+        insightSuggestion: "take a 7-minute walk without your phone.",
+        updatedAt: .now
+    )
 }
 
 #Preview(as: .systemSmall) {
     KomoWidget()
 } timeline: {
-    KomoEnergyEntry(date: .now, snapshot: .fallback)
+    KomoEnergyEntry(date: .now, snapshot: .preview)
 }
 
 #Preview(as: .systemMedium) {
     KomoWidget()
 } timeline: {
-    KomoEnergyEntry(date: .now, snapshot: .fallback)
+    KomoEnergyEntry(date: .now, snapshot: .preview)
 }

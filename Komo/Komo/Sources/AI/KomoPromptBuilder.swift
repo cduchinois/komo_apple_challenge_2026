@@ -2,104 +2,76 @@ import Foundation
 
 // MARK: - KomoPromptBuilder
 //
-// Builds a bulletproof system prompt compatible with Apple Foundation Models
-// on iOS 26 (and any other LLM). 100% on-device — no data leaves the iPhone.
+// Builds developer-owned instructions + a user prompt that injects real
+// HealthKit / EnergyScoreEngine data. The model must not invent numbers.
 
 struct KomoPromptBuilder {
     let analysis: DayAnalysis
+    let context: KomoInsightContext
     let mood: MoodLabel
     let env: KomoEnvironmentContext
 
-    init(analysis: DayAnalysis) {
+    init?(analysis: DayAnalysis) {
+        guard let context = KomoInsightContext.build(from: analysis) else { return nil }
         self.analysis = analysis
-        self.mood     = MoodLabel.from(analysis)
-        self.env      = .current
+        self.context = context
+        self.mood = context.mood
+        self.env = .current
     }
 
-    // MARK: - System Prompt (for session instructions)
+    // MARK: - System instructions (developer-only)
 
     func buildSystemPrompt() -> String {
-        var p = """
-        You are Komo, a private, caring, honest wellness companion running on-device.
+        """
+        You are Komo, a private, caring wellness companion running entirely on-device.
         \(MoodLabel.deviceLanguageInstruction)
 
-        Your mission: help the user understand their daily energy using only their real health data below.
+        Explain why the user feels \(context.energyWord.lowercased()) today (\(context.energyScore)% energy), using ONLY the data in the user message.
 
-        Absolute rules:
-        - Base yourself ONLY on the data provided. Never invent numbers.
-        - Never diagnose or give medical advice.
-        - No markdown, no bullet points, no numbering — plain prose lines only.
-        - Each insight: one sentence, max 20 words, starting with a relevant emoji.
-        - Tone: warm, direct, slightly alive. Like a companion who noticed something useful.
+        Voice (critical):
+        - Write like a warm friend texting, not a health report or AI assistant.
+        - Short, simple sentences. Everyday words a non-athlete understands.
+        - Never use em-dashes (—) or dash-as-punctuation. Use periods or commas instead.
+        - Never use acronyms or medical jargon: no HRV, VFC, HR, FC, bpm, ms, RHR, baseline, cardiovascular, cognitive load.
+        - Say "sleep", "walking" or "steps", "stress", "meetings", "workout", "heart at rest", "body recovery", "how you feel".
+        - Lowercase-friendly, gentle, direct. No bullet lists in output.
 
-        CONTEXT: \(env.promptDescription)
-        CURRENT STATE: \(mood.rawValue.uppercased())
-        PERSPECTIVE: \(mood.firstPersonContext)
+        Data rules:
+        - Never invent or change numbers. Repeat only values provided.
+        - The primary factor is pre-computed. Align with it; do not pick a different main cause.
+        - No medical diagnosis or treatment advice.
 
+        Environment: \(env.promptDescription)
+        User mood: \(mood.rawValue). \(mood.firstPersonContext)
+
+        Good example: "tu as bien dormi cette nuit, environ 8 heures. ton corps a eu le temps de se reposer."
+        Bad example: "tu as dormi 8.5 heures — bonne récupération."
+        Bad example: "ta VFC est basse à 42 ms."
         """
-
-        // Sleep data
-        if let sleep = analysis.sleepAssessment {
-            let h = sleep.data.totalSleepMinutes / 60.0
-            p += """
-            SLEEP:
-            - Duration: \(String(format: "%.1f", h))h — Score: \(Int(sleep.score))/100
-            - Deep: \(Int(sleep.data.deepSleepPct))% | REM: \(Int(sleep.data.remSleepPct))%
-            - Awakenings: \(sleep.data.awakeCount)
-
-            """
-        }
-
-        // Stress data
-        if !analysis.stressTimeline.isEmpty {
-            p += "STRESS:\n- High-stress hours: \(analysis.highStressHours)h\n"
-            if let peak = analysis.peakStressHour {
-                p += "- Peak: \(peak.hour):00 — HR \(Int(peak.meanHR)) bpm\n"
-            }
-            p += "\n"
-        }
-
-        // Activity
-        p += "ACTIVITY:\n- Steps: \(analysis.totalSteps)\n"
-        p += "- Active energy: \(analysis.totalCalories) kcal\n"
-        if analysis.workoutMinutes > 0 {
-            p += "- Workout: \(Int(analysis.workoutMinutes)) min\n"
-        }
-        if let rhr = analysis.restingHeartRate {
-            p += "- Resting HR: \(Int(rhr)) bpm\n"
-        }
-
-        // HRV
-        if analysis.averageHRV > 0 {
-            let label = analysis.averageHRV >= 50 ? "good recovery"
-                      : analysis.averageHRV >= 30 ? "moderate recovery" : "low recovery"
-            p += "- HRV: \(String(format: "%.0f", analysis.averageHRV)) ms (\(label))\n"
-        }
-
-        // Meetings
-        if analysis.totalMeetings > 0 {
-            p += "- Meetings: \(analysis.totalMeetings)\n"
-        }
-        p += "\n"
-
-        // Conditional directives
-        if mood == .lourd || mood == .fatigué {
-            p += "DIRECTIVE: Low energy — suggest one gentle, immediately doable recovery action.\n"
-        }
-        if analysis.highStressHours >= 3 {
-            p += "DIRECTIVE: High stress logged — suggest a quick reset technique.\n"
-        }
-        if analysis.totalSteps >= 10_000 {
-            p += "DIRECTIVE: Strong movement day — acknowledge it warmly.\n"
-        }
-
-        p += "\nOUTPUT: Generate 3 to 5 insights, one per line, each starting with an emoji."
-        return p
     }
 
-    // MARK: - User message for insights
+    // MARK: - User prompt (data injection)
+
+    func buildDailyInsightUserMessage() -> String {
+        let factor = KomoInsightVoice.humanFactorName(context.mainFactor)
+        return """
+        Here is today's real health data for this user:
+
+        \(context.serializedDataBlock)
+
+        Generate one insight card:
+        - observation: one warm sentence on why they feel \(context.energyWord.lowercased()) today. Focus on \(factor). Plain language only.
+        - quickWin: one simple thing they can do in the next hour (max 15 words). No jargon.
+        """
+    }
 
     func buildInsightsUserMessage() -> String {
-        "Based on my health data above, give me 3 to 5 personalised energy insights for today."
+        """
+        \(context.serializedDataBlock)
+
+        Generate 3 short companion lines (max 20 words each) about today's energy.
+        Plain everyday language. No em-dashes. No HRV/VFC/FC/bpm/ms.
+        Start each line with a relevant emoji.
+        """
     }
 }

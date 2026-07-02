@@ -16,6 +16,11 @@ struct ProfileView: View {
 #if DEBUG
     @State private var isInjectingDebugData = false
     @State private var debugInjectionMessage: String?
+    @State private var debugScenarioIndex = 0
+
+    private var nextScenario: DebugScenario {
+        DebugScenario.allCases[debugScenarioIndex % DebugScenario.allCases.count]
+    }
 #endif
 
     /// Existing companion-customization rows (World, Companion, Look, …).
@@ -87,10 +92,10 @@ struct ProfileView: View {
 
                 Button { app.go(.customize) } label: {
                     Text("Customize \(app.companionDisplayName)")
-                        .font(Theme.Font.label(16)).foregroundStyle(Theme.Palette.ink)
+                        .font(Theme.Font.label(16)).foregroundStyle(.white)
                         .frame(maxWidth: .infinity).frame(height: 52)
-                        .background(Color.white.opacity(0.96), in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
                         .shadow(color: .black.opacity(0.2), radius: 12, y: 8)
+                        .glassEffect(.clear.interactive())
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 4)
@@ -103,7 +108,7 @@ struct ProfileView: View {
                             ProgressView()
                                 .tint(Theme.Palette.ink)
                         }
-                        Text(isInjectingDebugData ? "Injecting test data..." : "Refresh test Health + Calendar data")
+                        Text(isInjectingDebugData ? "Injection en cours..." : nextScenario.buttonLabel)
                             .font(Theme.Font.label(15))
                             .foregroundStyle(Theme.Palette.ink)
                     }
@@ -143,12 +148,15 @@ struct ProfileView: View {
 
     private func injectDebugData() {
         isInjectingDebugData = true
+        let scenario = nextScenario
         Task { @MainActor in
             do {
-                let result = try await DebugTestDataInjector.shared.resetAndInject()
-                await HealthKitDataProvider.shared.loadToday()
-                app.publishWidgetEnergySnapshot()
-                debugInjectionMessage = result.message
+                let result = try await DebugTestDataInjector.shared.resetAndInject(scenario: scenario)
+                // refreshFromHealthKit() reloads data AND switches app.data to HealthKitDataProvider
+                // so the energy bar re-renders immediately.
+                await app.refreshFromHealthKit()
+                debugScenarioIndex += 1
+                debugInjectionMessage = "[\(scenario.scenarioLabel)] \(result.message)"
             } catch {
                 debugInjectionMessage = "Injection impossible: \(error.localizedDescription)"
             }
@@ -187,7 +195,13 @@ struct ProfileView: View {
                 }
             }
         }
-        .komoGlassCard(cornerRadius: Theme.Radius.card, fillOpacity: 0.14, strokeOpacity: 0.24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                .fill(Color.white.opacity(0.12))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card)
+                    .strokeBorder(Color.white.opacity(0.22), lineWidth: 1))
+        )
     }
 
     @ViewBuilder
@@ -236,14 +250,14 @@ struct ProfileView: View {
 
     private var permissionsCard: some View {
         let rows: [PermissionRowSpec] = [
-            .init(name: "Health data",   state: permissions.health,
+            .init(name: String(localized: "Health data"),   state: permissions.health,
                   onTap: { Task { await permissions.requestHealth() } }),
-            .init(name: "Calendar",      state: permissions.calendar,
+            .init(name: String(localized: "Calendar"),      state: permissions.calendar,
                   onTap: { Task { await permissions.requestCalendar() } }),
-            .init(name: "Notifications", state: permissions.notifications,
+            .init(name: String(localized: "Notifications"), state: permissions.notifications,
                   onTap: { Task { await permissions.requestNotifications() } }),
             // Screen Time has no runtime API — tap deep-links to Settings.
-            .init(name: "Screen time",   state: permissions.screenTime,
+            .init(name: String(localized: "Screen time"),   state: permissions.screenTime,
                   onTap: { permissions.openSettings() }),
         ]
         return VStack(spacing: 0) {
@@ -254,7 +268,14 @@ struct ProfileView: View {
                 }
             }
         }
-        .komoGlassCard(cornerRadius: Theme.Radius.card, fillOpacity: 0.14, strokeOpacity: 0.24)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                .fill(Color.white.opacity(0.12))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card)
+                    .strokeBorder(Color.white.opacity(0.22), lineWidth: 1))
+        )
         .task {
             // Re-read system-authoritative state whenever Profile appears —
             // status can change outside the app (Settings toggle).

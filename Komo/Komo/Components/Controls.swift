@@ -11,49 +11,49 @@ import SwiftUI
 /// target that both selects and advances. The chevron is decorative.
 struct OptionRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    var label: String
+    /// Stable English storage key; label is resolved from Localizable.xcstrings.
+    var labelKey: String
     var selected: Bool = false
     var action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack {
-                Text(label)
+                Text(L10n.option(labelKey))
                     .font(Theme.Font.label(17))
                     .foregroundStyle(.white)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white.opacity(selected ? 0.9 : 0.5))
+                    // 1. Force the text block to occupy 100 % width and center perfectly.
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    // 2. Place the chevron on the far right edge without touching the text layout.
+                    .overlay(alignment: .trailing) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white.opacity(selected ? 0.9 : 0.5))
+                    }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
             .frame(maxWidth: .infinity)
-            // Full-bounds hit target — the Spacer + padding must register taps.
+            // Full-bounds hit target — padding + Spacer register taps too.
             .contentShape(Rectangle())
-            .komoGlassButton(
-                cornerRadius: Theme.Radius.button,
-                tint: selected ? Color.white.opacity(0.22) : nil,
-                strokeOpacity: selected ? 0.92 : 0.24
-            )
             .scaleEffect(selected ? 1.0 : 0.99)
             .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.7), value: selected)
         }
-        .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
-        .accessibilityHint("Selects \(label)")
+        .accessibilityHint(Text("Selects \(L10n.option(labelKey))"))
+        .glassEffect(.clear.interactive())
     }
 }
 
 /// A multi-select pill (drains / restores), max-2 selection handled by AppState.
 struct PillChip: View {
-    var label: String
+    var labelKey: String
     var selected: Bool
     var action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(label)
+            Text(L10n.option(labelKey))
                 .font(Theme.Font.label(15))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 18)
@@ -75,7 +75,7 @@ struct PillChip: View {
 
 /// The light primary CTA used to advance the flow. Dim + disabled until ready.
 struct PrimaryButton: View {
-    var title: String
+    var title: LocalizedStringKey
     var enabled: Bool = true
     var filledGreen: Bool = false
     var action: () -> Void
@@ -84,24 +84,14 @@ struct PrimaryButton: View {
         Button(action: { if enabled { action() } }) {
             Text(title)
                 .font(Theme.Font.label(17))
-                .foregroundStyle(foreground)
+                .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 54)
-                .background(background, in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
                 .shadow(color: .black.opacity(enabled ? 0.18 : 0), radius: 12, y: 8)
         }
-        .buttonStyle(.plain)
         .disabled(!enabled)
         .animation(.easeInOut(duration: 0.2), value: enabled)
-    }
-
-    private var background: Color {
-        if filledGreen { return Theme.Palette.primaryGreen }
-        return enabled ? Color.white.opacity(0.96) : Color.white.opacity(0.22)
-    }
-    private var foreground: Color {
-        if filledGreen { return .white }
-        return enabled ? Theme.Palette.ink : .white.opacity(0.6)
+        .glassEffect(.clear.interactive())
     }
 }
 
@@ -121,8 +111,8 @@ struct OnboardingHeader: View {
 
 /// A question title styled like the prototype's 25pt white headings.
 struct QuestionTitle: View {
-    var text: String
-    var subtitle: String? = nil
+    var text: LocalizedStringKey
+    var subtitle: LocalizedStringKey? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {

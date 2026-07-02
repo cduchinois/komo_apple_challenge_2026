@@ -9,15 +9,14 @@ import SwiftUI
 
 struct LoadingView: View {
     @Environment(AppState.self) private var app
-    @Environment(PermissionsManager.self) private var permissions
     var namespace: Namespace.ID
 
     private var caption: String {
         let p = app.loadingPct
-        if p < 34 { return "saving your answers…" }
-        if p < 68 { return "reading your signals…" }
-        if p < 92 { return "looking for patterns…" }
-        return "building your first energy check-in…"
+        if p < 34 { return String(localized: "saving your answers…") }
+        if p < 68 { return String(localized: "reading your signals…") }
+        if p < 92 { return String(localized: "looking for patterns…") }
+        return String(localized: "building your first energy check-in…")
     }
 
     var body: some View {
@@ -60,9 +59,6 @@ struct LoadingView: View {
 
             // Load HealthKit data + persist energy check-in in the background.
             Task { await app.completeOnboardingLoad() }
-
-            // Request notifications (replaces SignalsView toggle wall).
-            Task { await permissions.requestNotifications() }
 
             app.loadingPct = 0
             while app.loadingPct < 100 {

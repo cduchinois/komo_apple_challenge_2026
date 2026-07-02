@@ -47,6 +47,9 @@ struct OnboardingEnergyScorer: EnergyDataProviding {
     // MARK: - EnergyDataProviding
 
     func currentSnapshot() -> EnergySnapshot {
+        if let hk = fallback as? HealthKitDataProvider, hk.hasData {
+            return hk.currentSnapshot()
+        }
         let (percent, _) = score()
         let level = EnergyLevel.from(percent: percent)
         let base = fallback.currentSnapshot()
@@ -69,14 +72,21 @@ struct OnboardingEnergyScorer: EnergyDataProviding {
     func headlineInsights() -> [String] { fallback.headlineInsights() }
 
     func energyBreakdown() -> EnergyBreakdown {
+        if let hk = fallback as? HealthKitDataProvider, hk.hasData {
+            return hk.energyBreakdown()
+        }
         let (percent, contributions) = score()
         let level = EnergyLevel.from(percent: percent)
         return EnergyBreakdown(
             percent: percent,
             word: level.word,
-            subtitle: "based on how you feel, your sleep, and your rhythm",
+            subtitle: String(localized: "based on how you feel, your sleep, and your rhythm"),
             contributions: contributions
         )
+    }
+
+    func personalizedReflections() -> [Reflection] {
+        fallback.personalizedReflections()
     }
 
     // MARK: - Scoring
@@ -89,7 +99,7 @@ struct OnboardingEnergyScorer: EnergyDataProviding {
         let base = baseFrom(energyNow)
         if let now = energyNow {
             contributions.append(.init(
-                label: "how you feel right now",
+                label: String(localized: "how you feel right now"),
                 detail: now,
                 points: Double(base),
                 kind: .recovery
@@ -97,7 +107,7 @@ struct OnboardingEnergyScorer: EnergyDataProviding {
         } else {
             // No Q2 answer — still surface a neutral base so the sheet isn't empty.
             contributions.append(.init(
-                label: "how you feel right now",
+                label: String(localized: "how you feel right now"),
                 detail: nil,
                 points: Double(base),
                 kind: .recovery
@@ -111,7 +121,7 @@ struct OnboardingEnergyScorer: EnergyDataProviding {
             let mod = clampedMod(sleepModRaw, currentTotal: running)
             if mod != 0 {
                 contributions.append(.init(
-                    label: "last night's sleep",
+                    label: String(localized: "last night's sleep"),
                     detail: sleepAnswer,
                     points: Double(mod),
                     kind: mod > 0 ? .recovery : .load
@@ -127,14 +137,14 @@ struct OnboardingEnergyScorer: EnergyDataProviding {
             if mod != 0 {
                 if mod > 0 {
                     contributions.append(.init(
-                        label: "your peak window",
+                        label: String(localized: "your peak window"),
                         detail: "you're in your \(windowLabel) window",
                         points: Double(mod),
                         kind: .recovery
                     ))
                 } else {
                     contributions.append(.init(
-                        label: "off-peak hours",
+                        label: String(localized: "off-peak hours"),
                         detail: "outside your \(windowLabel) window",
                         points: Double(mod),
                         kind: .load

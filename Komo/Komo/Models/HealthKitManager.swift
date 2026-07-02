@@ -8,7 +8,8 @@ import EventKit
 // return on the calling context. Types HRSample, HRVSample and
 // HealthDailySummary are defined in DayAnalysis.swift (same module).
 //
-// Authorization: call requestAuthorization() once per app session.
+// Authorization: call requestHealthAuthorization() only from explicit UI
+// actions (onboarding buttons, Profile). Never on app launch.
 // Data fetch: call fetchDailySummary(for:) to get a HealthDailySummary.
 
 final class HealthKitManager {
@@ -17,11 +18,32 @@ final class HealthKitManager {
     private let store = HKHealthStore()
     private let eventStore = EKEventStore()
 
+    /// Matches `DebugTestDataInjector` — samples with this flag are excluded
+    /// from production reads so debug injections never pollute real stats.
+    static let debugMetadataKey = "komo.debug.injected"
+
     private init() {}
+
+    private func isDebugSample(_ sample: HKSample) -> Bool {
+        (sample.metadata?[Self.debugMetadataKey] as? Bool) == true
+    }
+
+    /// In DEBUG we KEEP debug-injected samples so the in-app "Injecter" test
+    /// scenarios (Profile → Debug) actually show up in the dashboard. In
+    /// Release the injector never runs, so there is nothing to filter anyway —
+    /// filtering only in Release keeps real user data untouched without hiding
+    /// the demo data developers rely on.
+    private func excludingDebug<T: HKSample>(_ samples: [T]) -> [T] {
+        #if DEBUG
+        return samples
+        #else
+        return samples.filter { !isDebugSample($0) }
+        #endif
+    }
 
     // MARK: - Types to read
 
-    private var readTypes: Set<HKObjectType> {
+    static var healthReadTypes: Set<HKObjectType> {
         var types: Set<HKObjectType> = []
         let ids: [HKQuantityTypeIdentifier] = [
             .heartRate,
@@ -42,16 +64,11 @@ final class HealthKitManager {
 
     // MARK: - Authorization
 
-    func requestAuthorization() async throws {
+    /// Presents the native HealthKit permission sheet. Calendar access is
+    /// requested separately via `PermissionsManager.requestCalendar()`.
+    func requestHealthAuthorization() async throws {
         guard HKHealthStore.isHealthDataAvailable() else { return }
-        try await store.requestAuthorization(toShare: [], read: readTypes)
-
-        // Calendar read access
-        if #available(iOS 17, *) {
-            _ = try? await eventStore.requestFullAccessToEvents()
-        } else {
-            eventStore.requestAccess(to: .event) { _, _ in }
-        }
+        try await store.requestAuthorization(toShare: [], read: Self.healthReadTypes)
     }
 
     // MARK: - Daily summary fetch
@@ -87,12 +104,16 @@ final class HealthKitManager {
     private func fetchSteps(from start: Date, to end: Date) async throws -> Int {
         guard let type = HKQuantityType.quantityType(forIdentifier: .stepCount) else { return 0 }
         let pred = HKQuery.predicateForSamples(withStart: start, end: end)
+        // Cumulative-sum statistics deduplicate overlapping sources (iPhone +
+        // Watch) exactly like the Apple Health app, so the total matches Health
+        // instead of double-counting a summed sample query.
         return try await withCheckedThrowingContinuation { cont in
-            let q = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: pred,
-                                      options: .cumulativeSum) { _, stats, error in
+            let q = HKStatisticsQuery(
+                quantityType: type, quantitySamplePredicate: pred, options: .cumulativeSum
+            ) { _, stats, error in
                 if let error { cont.resume(throwing: error); return }
-                let count = stats?.sumQuantity()?.doubleValue(for: .count()) ?? 0
-                cont.resume(returning: Int(count))
+                let total = stats?.sumQuantity()?.doubleValue(for: .count()) ?? 0
+                cont.resume(returning: Int(total.rounded()))
             }
             store.execute(q)
         }
@@ -103,12 +124,15 @@ final class HealthKitManager {
     private func fetchActiveCalories(from start: Date, to end: Date) async throws -> Int {
         guard let type = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) else { return 0 }
         let pred = HKQuery.predicateForSamples(withStart: start, end: end)
+        // Cumulative-sum statistics match the Apple Health total exactly
+        // (deduplicated across sources) instead of summing raw samples.
         return try await withCheckedThrowingContinuation { cont in
-            let q = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: pred,
-                                      options: .cumulativeSum) { _, stats, error in
+            let q = HKStatisticsQuery(
+                quantityType: type, quantitySamplePredicate: pred, options: .cumulativeSum
+            ) { _, stats, error in
                 if let error { cont.resume(throwing: error); return }
-                let kcal = stats?.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? 0
-                cont.resume(returning: Int(kcal))
+                let total = stats?.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? 0
+                cont.resume(returning: Int(total.rounded()))
             }
             store.execute(q)
         }
@@ -126,9 +150,9 @@ final class HealthKitManager {
                 sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
             ) { _, samples, error in
                 if let error { cont.resume(throwing: error); return }
-                let result = (samples as? [HKQuantitySample])?.map {
+                let result = self.excludingDebug((samples as? [HKQuantitySample]) ?? []).map {
                     HRSample(date: $0.startDate, bpm: $0.quantity.doubleValue(for: bpmUnit))
-                } ?? []
+                }
                 cont.resume(returning: result)
             }
             store.execute(q)
@@ -147,9 +171,9 @@ final class HealthKitManager {
                 sortDescriptors: nil
             ) { _, samples, error in
                 if let error { cont.resume(throwing: error); return }
-                let result = (samples as? [HKQuantitySample])?.map {
+                let result = self.excludingDebug((samples as? [HKQuantitySample]) ?? []).map {
                     HRVSample(date: $0.startDate, ms: $0.quantity.doubleValue(for: msUnit))
-                } ?? []
+                }
                 cont.resume(returning: result)
             }
             store.execute(q)
@@ -168,7 +192,7 @@ final class HealthKitManager {
                 sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)]
             ) { _, samples, error in
                 if let error { cont.resume(throwing: error); return }
-                let rhr = (samples as? [HKQuantitySample])?.first?
+                let rhr = self.excludingDebug((samples as? [HKQuantitySample]) ?? []).first?
                     .quantity.doubleValue(for: bpmUnit)
                 cont.resume(returning: rhr)
             }
@@ -180,15 +204,19 @@ final class HealthKitManager {
 
     private func fetchSleep(from start: Date, to end: Date) async throws -> [HKCategorySample] {
         guard let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { return [] }
-        let nightStart = Calendar.current.date(byAdding: .hour, value: -12, to: start) ?? start
-        let pred = HKQuery.predicateForSamples(withStart: nightStart, end: end)
+        // Previous evening through early evening on the wake day — matches how
+        // Apple Health attributes "last night" to the calendar day you get up.
+        // Kept wide enough to catch early bedtimes and late risers/naps.
+        let nightStart = Calendar.current.date(byAdding: .hour, value: -8, to: start) ?? start
+        let nightEnd = Calendar.current.date(byAdding: .hour, value: 18, to: start) ?? end
+        let pred = HKQuery.predicateForSamples(withStart: nightStart, end: nightEnd)
         return try await withCheckedThrowingContinuation { cont in
             let q = HKSampleQuery(
                 sampleType: type, predicate: pred, limit: HKObjectQueryNoLimit,
                 sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
             ) { _, samples, error in
                 if let error { cont.resume(throwing: error); return }
-                cont.resume(returning: (samples as? [HKCategorySample]) ?? [])
+                cont.resume(returning: self.excludingDebug((samples as? [HKCategorySample]) ?? []))
             }
             store.execute(q)
         }
@@ -204,7 +232,8 @@ final class HealthKitManager {
                 limit: HKObjectQueryNoLimit, sortDescriptors: nil
             ) { _, samples, error in
                 if let error { cont.resume(throwing: error); return }
-                let total = (samples as? [HKWorkout])?.reduce(0) { $0 + $1.duration / 60.0 } ?? 0
+                let total = self.excludingDebug((samples as? [HKWorkout]) ?? [])
+                    .reduce(0) { $0 + $1.duration / 60.0 }
                 cont.resume(returning: total)
             }
             store.execute(q)
@@ -214,6 +243,18 @@ final class HealthKitManager {
     // MARK: - Calendar Meetings (EventKit)
 
     func fetchMeetingCount(from start: Date, to end: Date) async -> Int {
+        // Only query EventKit when we actually hold calendar access. Querying
+        // without authorization triggers repeated CADDatabase fetch failures
+        // (error 1013) and returns nothing anyway, so fail gracefully to 0.
+        let status = EKEventStore.authorizationStatus(for: .event)
+        let authorized: Bool
+        if #available(iOS 17.0, *) {
+            authorized = (status == .fullAccess || status == .authorized)
+        } else {
+            authorized = (status == .authorized)
+        }
+        guard authorized else { return 0 }
+
         let pred   = eventStore.predicateForEvents(withStart: start, end: end, calendars: nil)
         let events = eventStore.events(matching: pred)
         return events.filter { !$0.isAllDay && $0.endDate.timeIntervalSince($0.startDate) > 300 }.count

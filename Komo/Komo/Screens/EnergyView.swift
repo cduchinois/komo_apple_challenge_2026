@@ -12,7 +12,7 @@ struct EnergyView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var namespace: Namespace.ID
 
-    private let options = ["morning", "afternoon", "evening", "late night", "changes a lot"]
+    private let options = OnboardingOptions.energyPeaks
 
     /// Local echo of the chosen option so the row can flash its selected state
     /// briefly before the screen advances. Nil once the view re-appears.
@@ -45,7 +45,7 @@ struct EnergyView: View {
 
             VStack(spacing: Theme.Space.optionGap) {
                 ForEach(options, id: \.self) { opt in
-                    OptionRow(label: opt, selected: picked == opt) {
+                    OptionRow(labelKey: opt, selected: picked == opt) {
                         pick(opt)
                     }
                 }
@@ -54,7 +54,7 @@ struct EnergyView: View {
             .disabled(picked != nil)
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, Theme.Space.screenH)
+        .safeAreaPadding(.horizontal, 40)
         .padding(.top, Theme.Space.screenTop)
         .padding(.bottom, 32)
     }

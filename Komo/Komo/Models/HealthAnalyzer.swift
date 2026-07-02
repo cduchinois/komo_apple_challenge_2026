@@ -14,8 +14,8 @@ final class HealthAnalyzer {
 
     // MARK: - Main entry point
 
-    func analyzeDay(summary: HealthDailySummary) -> DayAnalysis {
-        let sleepAssessment = analyzeSleep(summary.sleepSamples)
+    func analyzeDay(summary: HealthDailySummary, for date: Date = Date()) -> DayAnalysis {
+        let sleepAssessment = analyzeSleep(summary.sleepSamples, wakeDay: date)
 
         let daySDNN = summary.hrvSamples.isEmpty ? nil
             : summary.hrvSamples.map(\.ms).reduce(0, +) / Double(summary.hrvSamples.count)
@@ -48,7 +48,7 @@ final class HealthAnalyzer {
     //
     // References: Walker (2017), Tasali et al. (2008), Carskadon & Dement (2005)
 
-    private func analyzeSleep(_ samples: [HKCategorySample]) -> SleepAssessment? {
+    private func analyzeSleep(_ samples: [HKCategorySample], wakeDay: Date) -> SleepAssessment? {
         guard !samples.isEmpty else { return nil }
 
         // Filter to actual sleep stages (not "in bed" / awake)
@@ -60,24 +60,22 @@ final class HealthAnalyzer {
         ]
         let awakeValue = HKCategoryValueSleepAnalysis.awake.rawValue
 
-        let asleepSamples = samples.filter { asleepValues.contains($0.value) }
-        let awakeSamples  = samples.filter { $0.value == awakeValue }
+        let daySamples = samplesForWakeDay(samples, wakeDay: wakeDay)
+        let asleepSamples = daySamples.filter { asleepValues.contains($0.value) }
+        let awakeSamples  = daySamples.filter { $0.value == awakeValue }
 
         guard !asleepSamples.isEmpty else { return nil }
 
-        // Total sleep duration (minutes)
-        let totalMin = asleepSamples.reduce(0.0) {
-            $0 + $1.endDate.timeIntervalSince($1.startDate) / 60.0
-        }
+        // Merge overlapping intervals so duplicate sources (Watch + phone) are
+        // not double-counted — matches Apple Health "time asleep" aggregation.
+        let totalMin = mergedAsleepMinutes(from: asleepSamples)
         guard totalMin > 0 else { return nil }
 
-        // Deep + REM percentages
-        let deepMin = samples
-            .filter { $0.value == HKCategoryValueSleepAnalysis.asleepDeep.rawValue }
-            .reduce(0.0) { $0 + $1.endDate.timeIntervalSince($1.startDate) / 60.0 }
-        let remMin = samples
-            .filter { $0.value == HKCategoryValueSleepAnalysis.asleepREM.rawValue }
-            .reduce(0.0) { $0 + $1.endDate.timeIntervalSince($1.startDate) / 60.0 }
+        // Deep + REM percentages (from merged asleep time)
+        let deepMin = mergedAsleepMinutes(from: daySamples
+            .filter { $0.value == HKCategoryValueSleepAnalysis.asleepDeep.rawValue })
+        let remMin = mergedAsleepMinutes(from: daySamples
+            .filter { $0.value == HKCategoryValueSleepAnalysis.asleepREM.rawValue })
 
         let deepPct = (deepMin / totalMin) * 100.0
         let remPct  = (remMin  / totalMin) * 100.0
@@ -117,6 +115,46 @@ final class HealthAnalyzer {
         // ─────────────────────────────────────────────────────────────────────
 
         return SleepAssessment(data: data, score: score)
+    }
+
+    /// Keeps samples that belong to the night ending on `wakeDay` (Apple Health
+    /// attributes sleep to the day you wake up). If the window filters out every
+    /// sample, we fall back to the samples we were given — `HealthKitManager`
+    /// already scoped the query to last night, so an empty result here would
+    /// throw away real sleep just because of a window edge case.
+    private func samplesForWakeDay(_ samples: [HKCategorySample], wakeDay: Date) -> [HKCategorySample] {
+        let calendar = Calendar.current
+        let startOfWakeDay = calendar.startOfDay(for: wakeDay)
+        guard let windowStart = calendar.date(byAdding: .hour, value: -8, to: startOfWakeDay),
+              let windowEnd = calendar.date(byAdding: .hour, value: 18, to: startOfWakeDay) else {
+            return samples
+        }
+
+        let windowed = samples.filter { sample in
+            let overlapStart = max(sample.startDate, windowStart)
+            let overlapEnd = min(sample.endDate, windowEnd)
+            return overlapEnd > overlapStart
+        }
+        return windowed.isEmpty ? samples : windowed
+    }
+
+    /// Union-merge overlapping asleep intervals, then sum duration in minutes.
+    private func mergedAsleepMinutes(from samples: [HKCategorySample]) -> Double {
+        guard !samples.isEmpty else { return 0 }
+        let intervals = samples
+            .map { ($0.startDate, $0.endDate) }
+            .sorted { $0.0 < $1.0 }
+
+        var merged: [(Date, Date)] = []
+        for interval in intervals {
+            if let last = merged.last, interval.0 <= last.1 {
+                merged[merged.count - 1] = (last.0, max(last.1, interval.1))
+            } else {
+                merged.append(interval)
+            }
+        }
+
+        return merged.reduce(0.0) { $0 + $1.1.timeIntervalSince($1.0) / 60.0 }
     }
 
 

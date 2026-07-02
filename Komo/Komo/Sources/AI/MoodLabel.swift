@@ -41,6 +41,17 @@ enum MoodLabel: String {
         case "de": return "Reply in German (Deutsch)."
         case "it": return "Reply in Italian (italiano)."
         case "pt": return "Reply in Portuguese (português)."
+        case "ja": return "Reply in Japanese (日本語)."
+        case "zh": return "Reply in Simplified Chinese (简体中文)."
+        case "ru": return "Reply in Russian (русский)."
+        case "pl": return "Reply in Polish (polski)."
+        case "tr": return "Reply in Turkish (Türkçe)."
+        case "sv": return "Reply in Swedish (svenska)."
+        case "da": return "Reply in Danish (dansk)."
+        case "nb", "no": return "Reply in Norwegian (norsk)."
+        case "th": return "Reply in Thai (ภาษาไทย)."
+        case "vi": return "Reply in Vietnamese (tiếng Việt)."
+        case "hi": return "Reply in Hindi (हिन्दी)."
         default:   return "Reply in English."
         }
     }

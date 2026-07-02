@@ -95,12 +95,20 @@ struct RootView: View {
         .preferredColorScheme(.light)
         .task {
             await permissions.refreshAll()
+            // Sync HealthKit only for returning users already in the main app.
+            // Permission sheets are shown from onboarding buttons, not on launch.
+            if isMainFlow {
+                await app.refreshFromHealthKit()
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { app.saveNow() }
         }
         .onChange(of: app.screen) { _, screen in
-            if screen == .main { app.publishWidgetEnergySnapshot() }
+            if screen == .main {
+                app.publishWidgetEnergySnapshot()
+                Task { await app.refreshFromHealthKit() }
+            }
         }
     }
 

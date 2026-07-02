@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+**/.DS_Store
+__MACOSX/
+
+# Xcode user-specific
+*.xcuserstate
+**/xcuserdata/
+**/*.xcuserdatad/
+**/xcshareddata/xcuserdata/
+
+# Xcode build
+DerivedData/
+build/
+*.xcarchive
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# Python venv (localization tooling)
+.venv-i18n/
+**/.venv-i18n/
+__pycache__/
+
+# Large / unused local resources (not part of the shipped app)
+/SplineRuntime/
+/KomoUI/

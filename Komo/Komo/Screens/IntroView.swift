@@ -28,12 +28,12 @@ struct IntroView: View {
     @State private var done = false
 
     private let lines: [HookLine] = [
-        .init(text: "hi, i’m komo.", size: 27, weight: .heavy, color: .white, topGap: 0, tracking: -0.6),
-        .init(text: "i help you understand your energy", size: 19, weight: .medium, color: .white.opacity(0.92), topGap: 22, tracking: -0.2),
-        .init(text: "what drains you,", size: 19, weight: .medium, color: .white.opacity(0.92), topGap: 14, tracking: -0.2),
-        .init(text: "what restores you,", size: 19, weight: .medium, color: .white.opacity(0.92), topGap: 4, tracking: -0.2),
-        .init(text: "and take care of your energy", size: 19, weight: .medium, color: .white.opacity(0.92), topGap: 22, tracking: -0.2),
-        .init(text: "before you crash.", size: 19, weight: .medium, color: .white.opacity(0.92), topGap: 4, tracking: -0.2),
+        .init(text: String(localized: "hi, i'm komo."), size: 27, weight: .heavy, color: .white, topGap: 0, tracking: -0.6),
+        .init(text: String(localized: "i help you understand your energy"), size: 19, weight: .medium, color: .white.opacity(0.92), topGap: 22, tracking: -0.2),
+        .init(text: String(localized: "what drains you,"), size: 19, weight: .medium, color: .white.opacity(0.92), topGap: 14, tracking: -0.2),
+        .init(text: String(localized: "what restores you,"), size: 19, weight: .medium, color: .white.opacity(0.92), topGap: 4, tracking: -0.2),
+        .init(text: String(localized: "and take care of your energy"), size: 19, weight: .medium, color: .white.opacity(0.92), topGap: 22, tracking: -0.2),
+        .init(text: String(localized: "before you crash."), size: 19, weight: .medium, color: .white.opacity(0.92), topGap: 4, tracking: -0.2),
     ]
 
     // Motion tokens for the staggered reveal.

@@ -18,9 +18,9 @@ struct HealthPermissionView: View {
     @State private var isRequesting = false
 
     private let lines: [String] = [
-        "sleep is one of your biggest energy signals.",
-        "komo can use health data to understand your sleep, movement, stress, and recovery.",
-        "everything stays on your device."
+        String(localized: "sleep is one of your biggest energy signals."),
+        String(localized: "komo can use health data to understand your sleep, movement, stress, and recovery."),
+        String(localized: "everything stays on your device.")
     ]
 
     private let lineDuration: Double = 0.7
@@ -77,7 +77,7 @@ struct HealthPermissionView: View {
             .buttonStyle(.plain)
             .padding(.top, 4)
         }
-        .padding(.horizontal, Theme.Space.screenH)
+        .safeAreaPadding(.horizontal, 40)
         .padding(.top, Theme.Space.screenTop)
         .padding(.bottom, 24)
         .task {

@@ -1,11 +1,10 @@
 //  CardsView.swift
 //  Komo
 //
-//  Cards tab — three sections that fill up as the user interacts with the
-//  Reflect card on Home:
+//  Cards tab — three sections shown inside tinted Liquid Glass containers:
 //    1. Saved insights   from `.save` / `.writeNote`
-//    2. To-dos           from `.remindMe` (reminder) / `.addToCalendar` (calendar)
-//    3. Energy advice    a light seeded feed of evergreen tips
+//    2. To-dos           from `.remindMe` / `.addToCalendar`
+//    3. Energy advice    seeded evergreen tips
 //  Each section shows a soft empty state until it has content.
 
 import SwiftUI
@@ -16,33 +15,54 @@ struct CardsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 24) {
                 header
 
-                section(title: "Saved insights",
-                        icon: "bookmark.fill",
-                        empty: "Nothing saved yet — tap Save on a KOMO insight to keep it here.") {
-                    savedInsightsList
+                // --- SECTION 1: Saved Insights (Purple Card) ---
+                VStack(alignment: .leading, spacing: 12) {
+                    section(title: "Saved insights",
+                            icon: "bookmark.fill",
+                            empty: "Nothing saved yet — tap Save on a KOMO insight to keep it here.") {
+                        savedInsightsList
+                    }
                 }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 32))
+                .glassEffect(.clear.interactive(), in: RoundedRectangle(cornerRadius: 32))
 
-                section(title: "To-dos",
-                        icon: "checklist",
-                        empty: "No to-dos yet — Remind me or Add to calendar on an insight to add one.") {
-                    todosList
+                // --- SECTION 2: To-dos (Blue Card) ---
+                VStack(alignment: .leading, spacing: 12) {
+                    section(title: "To-dos",
+                            icon: "checklist",
+                            empty: "No to-dos yet — Remind me or Add to calendar on an insight to add one.") {
+                        todosList
+                    }
                 }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 32))
+                .glassEffect(.clear.interactive(), in: RoundedRectangle(cornerRadius: 32))
 
-                section(title: "Energy advice",
-                        icon: "sparkles",
-                        empty: "Advice coming soon.") {
-                    adviceList
+                // --- SECTION 3: Energy Advice (Orange Card) ---
+                VStack(alignment: .leading, spacing: 12) {
+                    section(title: "Energy advice",
+                            icon: "sparkles",
+                            empty: "Advice coming soon.") {
+                        adviceList
+                    }
                 }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 32))
+                .glassEffect(.clear.interactive(), in: RoundedRectangle(cornerRadius: 32))
 
                 Spacer(minLength: 20)
             }
-            .padding(.horizontal, Theme.Space.screenH)
             .padding(.top, Theme.Space.screenTop)
             .padding(.bottom, 40)
         }
+        .safeAreaPadding(.horizontal, 20)
     }
 
     // MARK: Header
