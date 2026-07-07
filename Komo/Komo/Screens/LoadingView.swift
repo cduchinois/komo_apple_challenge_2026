@@ -1,0 +1,97 @@
+//  LoadingView.swift
+//  Komo
+//
+//  Transition — Bringing your companion to life. The blob floats (komoFloat), the
+//  caption pulses and swaps by threshold, and the bar fills (+3..8% every 110ms)
+//  until 100%, then settles into the main screen after 500ms.
+
+import SwiftUI
+
+struct LoadingView: View {
+    @Environment(AppState.self) private var app
+    var namespace: Namespace.ID
+
+    private var caption: String {
+        let p = app.loadingPct
+        if p < 34 { return String(localized: "saving your answers…") }
+        if p < 68 { return String(localized: "reading your signals…") }
+        if p < 92 { return String(localized: "looking for patterns…") }
+        return String(localized: "building your first energy check-in…")
+    }
+
+    var body: some View {
+        VStack(spacing: 36) {
+            // TODO(mascot-rollout): old hue/style/eyes/legs/mood dropped —
+            // the manual defines a single idle motion used everywhere.
+            KomoMascotView(size: KomoMascotView.standardSize,
+                           namespace: namespace,
+                           geometryID: "companion",
+                           accessibilityLabelText: app.companionDisplayName)
+
+            VStack(spacing: 16) {
+                Text(caption)
+                    .font(Theme.Font.body(18, weight: .medium))
+                    .foregroundStyle(.white)
+                    .pulsing()
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.white.opacity(0.22))
+                        Capsule().fill(Color.white)
+                            .frame(width: geo.size.width * CGFloat(app.loadingPct / 100))
+                            .shadow(color: .white.opacity(0.6), radius: 6)
+                            .animation(.linear(duration: 0.15), value: app.loadingPct)
+                    }
+                }
+                .frame(height: 6)
+
+                Text("\(Int(app.loadingPct))%")
+                    .font(Theme.Font.label(13))
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+        }
+        .padding(.horizontal, 36)
+        .padding(.vertical, 80)
+        // Fill the whole screen so the shared KomoBackground bleeds
+        // edge-to-edge behind it (otherwise the intrinsic-sized VStack
+        // leaves white safe-area strips at the top and bottom on iPhone).
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task {
+            // Snapshot onboarding answers into topic sets and reset the
+            // Reflect cursor so the first two Home cards are personalized.
+            app.completeOnboarding()
+
+            // Load HealthKit data + persist energy check-in in the background.
+            Task { await app.completeOnboardingLoad() }
+
+            app.loadingPct = 0
+            while app.loadingPct < 100 {
+                try? await Task.sleep(for: .milliseconds(130))
+                if app.screen != .loading { return }
+                app.loadingPct = min(100, app.loadingPct + (1 + Double.random(in: 0..<2)))
+            }
+            try? await Task.sleep(for: .milliseconds(1200))
+            if app.screen == .loading { app.go(.main) }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Bringing your companion to life. \(Int(app.loadingPct)) percent.")
+    }
+}
+
+private extension View {
+    func pulsing() -> some View { modifier(Pulse()) }
+}
+
+private struct Pulse: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        if reduceMotion {
+            content
+        } else {
+            TimelineView(.animation) { tl in
+                let p = (tl.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2)) / 2
+                content.opacity(0.5 + 0.5 * (sin(p * 2 * .pi) * 0.5 + 0.5))
+            }
+        }
+    }
+}
