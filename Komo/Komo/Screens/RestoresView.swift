@@ -1,0 +1,49 @@
+//  RestoresView.swift
+//  Komo
+//
+//  Page 5 — Q3 "Recharge". The hero is a translucent green liquid charge filling
+//  the blob silhouette (komoCharge) — a cup refilling — with a soft green halo.
+//  Unlimited multi-select; "not sure yet" is exclusive. Next → drains.
+
+import SwiftUI
+
+struct RestoresView: View {
+    @Environment(AppState.self) private var app
+    var namespace: Namespace.ID
+
+    private let options = OnboardingOptions.restores
+
+    var body: some View {
+        VStack(spacing: 0) {
+            OnboardingHeader(step: 3) { app.go(.healthPermission) }
+                .padding(.bottom, 14)
+
+            QuestionTitle(text: "what helps you\nrecharge?", subtitle: "select all that apply")
+
+            ZStack {
+                GlowHalo(color: Color(hex: 0x96EBA0).opacity(0.38), diameter: 150, period: 3.2)
+                // TODO(mascot-rollout): hue/style/eyes/legs dropped — manual's
+                // default idle used. Size unified to KomoMascotView.standardSize.
+                KomoMascotView(size: KomoMascotView.standardSize,
+                               namespace: namespace,
+                               geometryID: "companion",
+                               accessibilityLabelText: app.companionDisplayName)
+                ChargeFill(size: KomoMascotView.standardSize)
+            }
+            .frame(maxHeight: .infinity)
+
+            FlowChips(options: options, selected: app.restores) { label in
+                app.toggleRestore(label)
+            }
+
+            PrimaryButton(title: "next", enabled: !app.restores.isEmpty) {
+                app.go(.drains)
+            }
+            .padding(.top, 16)
+        }
+        .safeAreaPadding(.horizontal, 40)
+        .padding(.top, Theme.Space.screenTop)
+        .padding(.bottom, 32)
+        .animation(.spring(response: 0.25), value: app.restores)
+    }
+}

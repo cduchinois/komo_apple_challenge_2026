@@ -1,0 +1,398 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "CFBundleDisplayName": {
+      "comment": "App name on home screen",
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "__科莫0__"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        },
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        },
+        "en-AU": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        }
+      }
+    },
+    "CFBundleName": {
+      "comment": "Bundle name",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Komo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "__科莫0__"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        },
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        },
+        "en-AU": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo"
+          }
+        }
+      }
+    },
+    "NSCalendarsFullAccessUsageDescription": {
+      "comment": "Calendar full access permission",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo needs full access to your calendar to count your meetings and understand your cognitive load."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo a besoin d'un accès complet à ton calendrier pour compter tes réunions et comprendre ta charge cognitive."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo necesita acceso completo a su calendario para contar sus reuniones y comprender su carga cognitiva."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo benötigt vollen Zugriff auf Ihren Kalender, um Ihre Besprechungen zu zählen und Ihre kognitive Belastung zu verstehen."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo precisa de acesso total à sua agenda para contar suas reuniões e entender sua carga cognitiva."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo は、会​​議をカウントし、認知負荷を理解するために、カレンダーに完全にアクセスする必要があります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo 需要完全访问您的日历来计算您的会议并了解您的认知负荷。"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo ha bisogno dell'accesso completo al tuo calendario per contare le tue riunioni e comprendere il tuo carico cognitivo."
+          }
+        },
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo needs full access to your calendar to count your meetings and understand your cognitive load."
+          }
+        },
+        "en-AU": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo needs full access to your calendar to count your meetings and understand your cognitive load."
+          }
+        }
+      }
+    },
+    "NSCalendarsUsageDescription": {
+      "comment": "Calendar read permission",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo reads your calendar to understand your daily load and suggest better recovery windows."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo lit ton calendrier pour comprendre ta charge quotidienne et suggérer de meilleures fenêtres de récupération."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo lee su calendario para comprender su carga diaria y sugerir mejores ventanas de recuperación."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo liest Ihren Kalender, um Ihre tägliche Belastung zu verstehen und bessere Erholungsfenster vorzuschlagen."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo lê seu calendário para entender sua carga diária e sugerir melhores janelas de recuperação."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo はカレンダーを読み取り、毎日の負荷を理解し、より良い回復期間を提案します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo 读取您的日历以了解您的每日负荷并建议更好的恢复窗口。"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo legge il tuo calendario per comprendere il tuo carico giornaliero e suggerire finestre di recupero migliori."
+          }
+        },
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo reads your calendar to understand your daily load and suggest better recovery windows."
+          }
+        },
+        "en-AU": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo reads your calendar to understand your daily load and suggest better recovery windows."
+          }
+        }
+      }
+    },
+    "NSHealthShareUsageDescription": {
+      "comment": "HealthKit read permission",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo needs access to your health data to understand your sleep, movement, stress, and recovery."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo a besoin d'accéder à tes données Santé pour comprendre ton sommeil, ton mouvement, ton stress et ta récupération."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo necesita acceso a sus datos de salud para comprender su sueño, movimiento, estrés y recuperación."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo benötigt Zugriff auf Ihre Gesundheitsdaten, um Ihren Schlaf, Ihre Bewegung, Ihren Stress und Ihre Erholung zu verstehen."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo precisa de acesso aos seus dados de saúde para compreender seu sono, movimento, estresse e recuperação."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo は、あなたの睡眠、動き、ストレス、回復を理解するためにあなたの健康データにアクセスする必要があります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo 需要访问您的健康数据以了解您的睡眠、运动、压力和恢复情况。"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo ha bisogno di accedere ai tuoi dati sanitari per comprendere il tuo sonno, il movimento, lo stress e il recupero."
+          }
+        },
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo needs access to your health data to understand your sleep, movement, stress, and recovery."
+          }
+        },
+        "en-AU": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo needs access to your health data to understand your sleep, movement, stress, and recovery."
+          }
+        }
+      }
+    },
+    "NSHealthUpdateUsageDescription": {
+      "comment": "HealthKit write permission",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo may write health data for testing and debugging purposes."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo peut écrire des données Santé à des fins de test et de débogage."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo puede escribir datos de salud con fines de prueba y depuración."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo kann Gesundheitsdaten zu Test- und Debugzwecken schreiben."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo pode gravar dados de saúde para fins de teste e depuração."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo は、テストとデバッグの目的で健康データを書き込むことがあります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo 可以出于测试和调试目的写入运行状况数据。"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo può scrivere dati sanitari a scopo di test e debug."
+          }
+        },
+        "en-GB": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo may write health data for testing and debugging purposes."
+          }
+        },
+        "en-AU": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komo may write health data for testing and debugging purposes."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}
