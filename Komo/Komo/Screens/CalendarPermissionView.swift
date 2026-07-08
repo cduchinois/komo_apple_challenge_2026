@@ -4,7 +4,8 @@
 //  Conditional permission screen shown right after Q4 (drains) if the user
 //  selected a calendar-heavy drain (meetings / intense work / social plans).
 //  KOMO's opening line reflects the first matching drain. Primary CTA fires
-//  the native EventKit prompt; secondary "not now" continues.
+//  the native EventKit prompt — user's grant/deny choice is made inside the
+//  system sheet, no in-app bypass (App Store 5.1.1(iv)).
 //
 //  Requires INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription in the project
 //  build settings — added in project.pbxproj.
@@ -79,17 +80,6 @@ struct CalendarPermissionView: View {
                           enabled: !isRequesting) {
                 requestAndAdvance()
             }
-
-            Button {
-                app.go(.loading)
-            } label: {
-                Text("not now")
-                    .font(Theme.Font.label(14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .frame(maxWidth: .infinity).frame(height: 40)
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 4)
         }
         .padding(.top, Theme.Space.screenTop)
         .padding(.bottom, 24)

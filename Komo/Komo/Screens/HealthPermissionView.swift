@@ -3,8 +3,9 @@
 //
 //  Contextual permission screen shown right after Q sleep. KOMO explains why
 //  it wants health data, then a primary CTA fires the native HealthKit prompt
-//  via `PermissionsManager.requestHealth()`. A secondary "not now" continues
-//  without requesting. Either path advances to Restores (Q3).
+//  via `PermissionsManager.requestHealth()`. The user's grant/deny choice is
+//  made inside the native sheet — no in-app bypass (App Store 5.1.1(iv)).
+//  Either outcome advances to Restores (Q3).
 
 import SwiftUI
 
@@ -65,17 +66,6 @@ struct HealthPermissionView: View {
                           enabled: !isRequesting) {
                 requestAndAdvance()
             }
-
-            Button {
-                app.go(.restores)
-            } label: {
-                Text("not now")
-                    .font(Theme.Font.label(14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .frame(maxWidth: .infinity).frame(height: 40)
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 4)
         }
         .safeAreaPadding(.horizontal, 40)
         .padding(.top, Theme.Space.screenTop)

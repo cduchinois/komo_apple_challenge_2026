@@ -109,6 +109,15 @@ struct RootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { app.saveNow() }
+            // Re-fetch on foreground so permission changes made in Settings
+            // (e.g. Health granted after being denied) take effect without
+            // requiring an app restart.
+            if phase == .active && isMainFlow {
+                Task {
+                    await permissions.refreshAll()
+                    await app.refreshFromHealthKit()
+                }
+            }
         }
         .onChange(of: app.screen) { _, screen in
             if screen == .main {
