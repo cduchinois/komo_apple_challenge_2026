@@ -35,7 +35,7 @@ struct CalendarPermissionView: View {
     private var lines: [String] {
         [
             openingLine,
-            String(localized: "if i can peek at your calendar, i'll see the heavy days coming.")
+            String(localized: "calendar days show komo when weeks are heavy. next, you'll choose what to share.")
         ]
     }
 
@@ -76,7 +76,7 @@ struct CalendarPermissionView: View {
 
             Spacer(minLength: 20)
 
-            PrimaryButton(title: isRequesting ? "requesting…" : "let komo see my calendar",
+            PrimaryButton(title: isRequesting ? "requesting…" : "continue",
                           enabled: !isRequesting) {
                 requestAndAdvance()
             }

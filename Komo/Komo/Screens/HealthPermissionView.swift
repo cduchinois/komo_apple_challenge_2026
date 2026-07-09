@@ -20,8 +20,8 @@ struct HealthPermissionView: View {
 
     private let lines: [String] = [
         String(localized: "sleep is one of your biggest energy signals."),
-        String(localized: "komo can use health data to understand your sleep, movement, stress, and recovery."),
-        String(localized: "everything stays on your device.")
+        String(localized: "komo learns from your sleep, movement, stress, and recovery."),
+        String(localized: "next, you'll choose what to share. everything stays on your device.")
     ]
 
     private let lineDuration: Double = 0.7
@@ -62,7 +62,7 @@ struct HealthPermissionView: View {
 
             Spacer(minLength: 20)
 
-            PrimaryButton(title: isRequesting ? "requesting…" : "connect health data",
+            PrimaryButton(title: isRequesting ? "requesting…" : "continue",
                           enabled: !isRequesting) {
                 requestAndAdvance()
             }

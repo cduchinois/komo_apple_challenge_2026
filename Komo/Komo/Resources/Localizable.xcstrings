@@ -4161,6 +4161,23 @@
         }
       }
     },
+    "calendar days show komo when weeks are heavy. next, you'll choose what to share." : {
+      "comment" : "Calendar pre-prompt second line — explanation + framing of next screen as the choice moment.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "calendar days show komo when weeks are heavy. next, you'll choose what to share."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "les jours de ton agenda montrent à komo les semaines chargées. ensuite, tu choisis ce que tu partages."
+          }
+        }
+      }
+    },
     "Calendar Load" : {
       "localizations" : {
         "de" : {
@@ -5010,6 +5027,7 @@
     },
     "connect health data" : {
       "comment" : "Onboarding UI",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -5134,6 +5152,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已连接"
+          }
+        }
+      }
+    },
+    "continue" : {
+      "comment" : "Onboarding permission CTA — neutral navigation label.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "continue"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "continuer"
           }
         }
       }
@@ -6049,6 +6084,7 @@
     },
     "everything stays on your device." : {
       "comment" : "Onboarding UI",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -7674,6 +7710,7 @@
     },
     "if i can peek at your calendar, i'll see the heavy days coming." : {
       "comment" : "Onboarding UI",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -8327,6 +8364,7 @@
     },
     "komo can use health data to understand your sleep, movement, stress, and recovery." : {
       "comment" : "Onboarding UI",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -8515,6 +8553,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Komo 已准备好迎接您的下次入住。"
+          }
+        }
+      }
+    },
+    "komo learns from your sleep, movement, stress, and recovery." : {
+      "comment" : "Health pre-prompt second line — states what komo learns from, neutral tone.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "komo learns from your sleep, movement, stress, and recovery."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "komo apprend de ton sommeil, ton activité, ton stress et ta récupération."
           }
         }
       }
@@ -8910,6 +8965,7 @@
     },
     "let komo see my calendar" : {
       "comment" : "Onboarding UI",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -11048,6 +11104,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下一个"
+          }
+        }
+      }
+    },
+    "next, you'll choose what to share. everything stays on your device." : {
+      "comment" : "Health pre-prompt third line — frames next screen as user's choice moment + privacy reassurance.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "next, you'll choose what to share. everything stays on your device."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ensuite, tu choisis ce que tu partages. tout reste sur ton appareil."
           }
         }
       }
